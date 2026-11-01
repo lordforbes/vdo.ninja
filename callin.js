@@ -1123,8 +1123,37 @@
 			session.callin.element = audio;
 			applySpeakerMute();
 			rebuildOutboundMix();
+			publishCallerToRoom();
 			setStatus("Caller audio connected to the VDO.Ninja outbound mix.");
 			return true;
+		}
+
+		function publishCallerToRoom() {
+			if (state.roomPublished || !state.remoteStream) {
+				return;
+			}
+			var room = getParam(["room", "vdo-room"], "");
+			if (!room) {
+				return;
+			}
+			state.roomPublished = true;
+			session.roomid = room;
+			if (!session.streamID) {
+				session.streamID = "sip-" + String(Math.random()).slice(2, 8);
+			}
+			var v = document.createElement("video");
+			v.srcObject = state.remoteStream;
+			v.muted = true;
+			v.autoplay = true;
+			v.playsInline = true;
+			v.style.display = "none";
+			document.body.appendChild(v);
+			try {
+				session.publishStream(v);
+				setStatus("SIP caller published to room \"" + room + "\".");
+			} catch (e) {
+				callinError("Publish caller to room failed: " + String(e));
+			}
 		}
 
 		function wirePeerConnection(sipSession) {
