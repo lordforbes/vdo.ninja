@@ -3489,7 +3489,7 @@
 			// if (!window.location.search){document.body.innerHTML = "";} // uncomment this line, if you wish to try it.
 			
 			var session = WebRTC.Media; // session is a required global variable if configuring manually. Run before loading main.js but after webrtc.js.
-			session.version = "31.3"; // added director claim-time room admission controls (cap + bypass key + approval queue)
+			session.version = "31.4"; // studio, guest label, and chunked A/V fixes
 			session.streamID = session.generateStreamID(); // randomly generates a streamID for this session. You can set your own programmatically if needed
 			
 			session.defaultPassword = "someEncryptionKey123"; // Change this password if self-deploying for added security/privacy
@@ -3614,7 +3614,7 @@
 			
 		</script>
 		
-		<script type="text/javascript" crossorigin="anonymous" id="lib-js" src="./lib.js?ver=14250" onerror="retryStartupOnBackup()"></script>
+		<script type="text/javascript" crossorigin="anonymous" id="lib-js" src="./lib.js?ver=14252" onerror="retryStartupOnBackup()"></script>
 		<script type="text/javascript" crossorigin="anonymous" id="main-js" src="./main.js?ver=1109" onerror="retryStartupOnBackup()"></script>
 		<script>
 			// Wait for the DOM, not for optional downloads or the window load event.
@@ -3640,7 +3640,7 @@
 			if (new URLSearchParams(window.location.search).has("podcast")) {
 				var podcastScript = document.createElement("script");
 				podcastScript.type = "module";
-				podcastScript.src = "./podcast/bootstrap.js?v=5";
+				podcastScript.src = "./podcast/bootstrap.js?v=9";
 				podcastScript.onerror = function () { console.warn("Podcast studio could not load."); };
 				document.head.appendChild(podcastScript);
 			}
