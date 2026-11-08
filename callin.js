@@ -506,7 +506,47 @@
 				config.iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
 			}
 		}
+		var sipTurn = getSipTurnServers();
+		if (sipTurn) {
+			// The SIP leg uses only the PBX-side relay: browsers hide their LAN address
+			// behind an mDNS ".local" name that Asterisk cannot resolve, so a TURN relay on
+			// the PBX's network is the address Asterisk can actually reach.
+			config.iceServers = sipTurn;
+		}
 		return config;
+	}
+
+	// &sipturn=turn:host:3478[,turn:host2:3478]&sipturnuser=..&sipturnpass=..
+	// ICE servers for the phone (SIP) peer connection only; room connections are unchanged.
+	function getSipTurnServers() {
+		var raw = getParam(["sipturn", "callinturn"], "");
+		if (!raw) {
+			return null;
+		}
+		var urls = String(raw)
+			.split(",")
+			.map(function (u) {
+				return u.trim();
+			})
+			.filter(function (u) {
+				return !!u;
+			})
+			.map(function (u) {
+				return /^(turns?|stun):/i.test(u) ? u : "turn:" + u;
+			});
+		if (!urls.length) {
+			return null;
+		}
+		var server = { urls: urls };
+		var user = getParam(["sipturnuser", "callinturnuser"], "");
+		var pass = getParam(["sipturnpass", "callinturnpass"], "");
+		if (user) {
+			server.username = user;
+		}
+		if (pass) {
+			server.credential = pass;
+		}
+		return [server];
 	}
 
 	function getAudioContext() {
