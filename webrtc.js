@@ -14847,6 +14847,9 @@ WebRTC.Media = (function () {
 								session.webAudios[waid].gainNode.gain.setValueAtTime(vol, session.webAudios[waid].audioContext.currentTime);
 							}
 						} catch (e) { }
+						if (typeof applyCallInFollowGain === "function") {
+							applyCallInFollowGain(); // phone caller follows director mute/volume with &callinfollowmute
+						}
 						updateVolume(true);
 					}
 					if ("micIsolate" in msg) {

@@ -20620,6 +20620,7 @@ function toggleMute(apply = false, event = false) {
 	if (session.translationController) {
 		session.translationController.syncMuteState(session.muted);
 	}
+	applyCallInFollowGain();
 	if (session.callin && session.callin.updateMixer) {
 		session.callin.updateMixer();
 	}
@@ -28430,13 +28431,61 @@ function connectCallInBridgeAudio(webAudio, targetNode) {
 
 	try {
 		webAudio.callInBridgeSource = webAudio.audioContext.createMediaStreamSource(callInStream);
-		webAudio.callInBridgeSource.connect(targetNode);
+		// The caller joins the mix after the microphone's gain stage, so a dedicated gain
+		// node is the only way mute/volume can reach the caller (see &callinfollowmute).
+		webAudio.callInGainNode = webAudio.audioContext.createGain();
+		webAudio.callInGainNode.gain.value = getCallInFollowGain();
+		webAudio.callInBridgeSource.connect(webAudio.callInGainNode);
+		webAudio.callInGainNode.connect(targetNode);
 		webAudio.callInMixed = true;
 		return true;
 	} catch (e) {
 		errorlog(e);
 	}
 	return false;
+}
+
+// Gain for the phone caller in this page's outgoing audio.
+// Without &callinfollowmute the caller always stays at full level (original behaviour,
+// suited to a host who mutes their own mic while the caller stays on air).
+// With it, the caller follows this page's mute and the director's mute/volume slider.
+function getCallInFollowGain() {
+	if (!session.callInFollowMute) {
+		return 1;
+	}
+	if (session.muted) {
+		return 0;
+	}
+	if (session.audioGain === false || session.audioGain === undefined || session.audioGain === null) {
+		return 1;
+	}
+	var gain = parseFloat(session.audioGain / 100.0);
+	if (!isFinite(gain) || gain < 0) {
+		return 0;
+	}
+	return gain;
+}
+
+function applyCallInFollowGain() {
+	if (!session.webAudios) {
+		return;
+	}
+	var gain = getCallInFollowGain();
+	for (var waid in session.webAudios) {
+		var webAudio = session.webAudios[waid];
+		if (!webAudio || !webAudio.callInGainNode || !webAudio.audioContext) {
+			continue;
+		}
+		try {
+			webAudio.callInGainNode.gain.setTargetAtTime(gain, webAudio.audioContext.currentTime, 0.015);
+		} catch (e) {
+			try {
+				webAudio.callInGainNode.gain.value = gain;
+			} catch (e2) {
+				errorlog(e2);
+			}
+		}
+	}
 }
 
 function createCallInOnlyOutboundStream(streamSrc) {

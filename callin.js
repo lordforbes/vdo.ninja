@@ -1136,6 +1136,13 @@
 			if (!room) {
 				return;
 			}
+			if (session.videoElement && session.videoElement.id === "videosource") {
+				// This page already joined the room and is publishing; the caller is already
+				// in its outgoing mix, so publishing again would only replace the page's
+				// video element mid-call.
+				state.roomPublished = true;
+				return;
+			}
 			state.roomPublished = true;
 			session.roomid = room;
 			if (!session.streamID) {
@@ -1271,6 +1278,42 @@
 			}
 		}
 
+		// How long to keep gathering ICE candidates before sending the SDP.
+		// JsSIP otherwise waits for gathering to finish, which can take 30-40 seconds
+		// when STUN/TURN servers are slow or unreachable (e.g. on a LAN or VPN),
+		// leaving the caller hearing ringback long after the call was answered.
+		// &sipicetimeout=ms overrides the default; &sipicetimeout=0 restores the original wait.
+		function getIceGatherTimeout() {
+			var raw = getParam(["sipicetimeout", "callinicetimeout"], "");
+			if (raw === "" || raw === null) {
+				return 1000;
+			}
+			var ms = parseInt(raw, 10);
+			if (!isFinite(ms) || ms < 0) {
+				return 1000;
+			}
+			return Math.min(ms, 30000);
+		}
+
+		function scheduleIceReady(data) {
+			if (!data || typeof data.ready !== "function") {
+				return;
+			}
+			var delay = getIceGatherTimeout();
+			if (!delay || data.ready._vdoIceTimer) {
+				return;
+			}
+			// JsSIP passes the same ready() for every candidate in one gathering pass,
+			// so the timer starts on the first candidate and fires once.
+			data.ready._vdoIceTimer = setTimeout(function () {
+				try {
+					data.ready();
+				} catch (e) {
+					callinError(e);
+				}
+			}, delay);
+		}
+
 		function bindRtcSession(sipSession) {
 			state.activeSession = sipSession;
 			setButtons();
@@ -1278,6 +1321,9 @@
 				return;
 			}
 			sipSession._vdoCallInBound = true;
+			sipSession.on("icecandidate", function (data) {
+				scheduleIceReady(data);
+			});
 			setTimeout(function () {
 				wirePeerConnection(sipSession);
 			}, 0);

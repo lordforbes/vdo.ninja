@@ -1537,6 +1537,12 @@ async function main() {
 	if (urlParams.has("pagezoom")) {
 		enableFullscreenZoom();
 	}
+	if (urlParams.has("callinfollowmute") || urlParams.has("sipfollowmute")) {
+		// Dedicated phone-line pages: the phone caller follows this page's mute and the
+		// director's mute/volume for this guest, instead of bypassing them.
+		var followMuteValue = String(urlParams.get("callinfollowmute") || urlParams.get("sipfollowmute") || "").toLowerCase();
+		session.callInFollowMute = !(followMuteValue === "0" || followMuteValue === "false" || followMuteValue === "off" || followMuteValue === "no");
+	}
 	if (urlParams.has("callin")) {
 		session.callinRequested = urlParams.get("callin") || "sip";
 		loadScript("./callin.js?v=1", function () {
