@@ -1354,6 +1354,29 @@
 			}, delay);
 		}
 
+		// Browsers hide their LAN address behind an mDNS "<uuid>.local" host candidate.
+		// Asterisk cannot resolve mDNS; its ICE agent errors on that candidate ("Error
+		// sending STUN request: Invalid argument") and never completes, so no audio flows
+		// and the carrier drops the silent call after ~20 s. Remove those candidates from
+		// our SDP when any other candidate remains (e.g. from &sipturn).
+		function stripMdnsCandidates(sdp) {
+			var lines = sdp.split(/\r\n|\n/);
+			var isMdns = function (line) {
+				return /^a=candidate:/.test(line) && /\s[0-9a-f-]+\.local\s/i.test(line);
+			};
+			var others = lines.filter(function (line) {
+				return /^a=candidate:/.test(line) && !isMdns(line);
+			});
+			if (!others.length) {
+				return sdp;
+			}
+			return lines
+				.filter(function (line) {
+					return !isMdns(line);
+				})
+				.join("\r\n");
+		}
+
 		function bindRtcSession(sipSession) {
 			state.activeSession = sipSession;
 			setButtons();
@@ -1363,6 +1386,11 @@
 			sipSession._vdoCallInBound = true;
 			sipSession.on("icecandidate", function (data) {
 				scheduleIceReady(data);
+			});
+			sipSession.on("sdp", function (data) {
+				if (data && data.originator === "local" && typeof data.sdp === "string") {
+					data.sdp = stripMdnsCandidates(data.sdp);
+				}
 			});
 			setTimeout(function () {
 				wirePeerConnection(sipSession);
