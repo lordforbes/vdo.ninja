@@ -1,0 +1,9 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Phone Line 6</title>
+<script>
+// Short link for Phone Line 6. Extra parameters typed after ? are passed through,
+// e.g. line6.html?sipauto&audiodevice=Out%20B3
+var base = "./?room=DeliteDialin&push=phoneline6&label=Phone%20Line%206&videodevice=0&callin=sip&sipwss=wss://webrtc.d1g1.co.uk:8089/ws&sipuri=sip:8806@webrtc.d1g1.co.uk&sipuser=8806&sipdisplay=PhoneLine6&sipautoanswer&callinfollowmute&sipturn=turn:webrtc.d1g1.co.uk:3478&sipturnuser=vdophone&sipturnpass=Q4OfCPfXyKq4JeWkw2Tq";
+var extra = window.location.search.replace(/^\?/, "");
+window.location.replace(base + (extra ? "&" + extra : ""));
+</script></head><body>Opening Phone Line 6…</body></html>
