@@ -765,8 +765,7 @@
 				audio.playsInline = true;
 				audio.style.display = "none";
 				document.body.appendChild(audio);
-				var outputDevice = getParam(["callinoutput", "sipoutput"], "");
-				setCallInOutputDevice(audio, outputDevice);
+				setCallInOutputDevice(audio, currentCallerOutput());
 				state.ringtoneAudio = audio;
 			}
 			if (audio.getAttribute("src") !== source) {
@@ -984,21 +983,35 @@
 			var audio = document.createElement("audio");
 			audio.autoplay = true;
 			audio.playsInline = true;
-			audio.muted = !!(window.session && session.speakerMuted);
+			audio.muted = !!(window.session && session.speakerMuted) && !callerMonitorEnabled();
 			audio.style.display = "none";
 			document.body.appendChild(audio);
 			state.remoteAudio = audio;
 
-			var outputDevice = getParam(["callinoutput", "sipoutput"], "");
-			setCallInOutputDevice(audio, outputDevice);
+			setCallInOutputDevice(audio, currentCallerOutput());
 			return audio;
+		}
+
+		// Caller's local playback: &callinoutput / &callinmonitor, or set live by a host page
+		// (switchboard.html) through session.callin.setOutput(deviceIdOrLabel).
+		function currentCallerOutput() {
+			if (state.outputOverride) {
+				return state.outputOverride.device;
+			}
+			return getParam(["callinoutput", "sipoutput"], "");
+		}
+		function callerMonitorEnabled() {
+			if (state.outputOverride) {
+				return state.outputOverride.monitor;
+			}
+			return paramEnabled(["callinmonitor", "sipmonitor"]);
 		}
 
 		function applySpeakerMute() {
 			if (state.remoteAudio) {
 				// &callinmonitor keeps the caller's local playback (e.g. to a Voicemeeter strip
 				// chosen with &callinoutput) even when the page's speaker is muted.
-				state.remoteAudio.muted = !!(window.session && session.speakerMuted) && !paramEnabled(["callinmonitor", "sipmonitor"]);
+				state.remoteAudio.muted = !!(window.session && session.speakerMuted) && !callerMonitorEnabled();
 			}
 			if (state.twilioAudio) {
 				// Once the stream is attached to remoteAudio, keep the SDK-owned
@@ -2962,6 +2975,21 @@
 				hasPassword: !!(state.fields.password && state.fields.password.value),
 				status: state.status ? state.status.textContent : ""
 			};
+		};
+		// device: "" = no local playback; "default" = system default output; otherwise a
+		// deviceId or any part of an output device's name.
+		session.callin.setOutput = function (device) {
+			device = String(device || "");
+			state.outputOverride = { device: device, monitor: !!device };
+			[state.remoteAudio, state.ringtoneAudio].forEach(function (el) {
+				if (el && el.setSinkId) {
+					setCallInOutputDevice(el, device || "default");
+				}
+			});
+			applySpeakerMute();
+		};
+		session.callin.getOutput = function () {
+			return { device: currentCallerOutput(), monitor: callerMonitorEnabled() };
 		};
 		session.callin.toggleConnect = function () {
 			if (state.connectButton && !state.connectButton.disabled) {

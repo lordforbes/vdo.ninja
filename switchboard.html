@@ -12,8 +12,9 @@
     ?lines=1-9        which lines to show (ranges and lists: 1-4, 1,2,5)   default 1-9
     &listen           play room/caller audio locally (default: lines are muted locally)
     any other option  passed to every line, e.g. &audiodevice=Out%20B3
-    &out2=AUX         line 2 plays its caller to the output device named AUX (any part of the
-                      name, e.g. a Voicemeeter strip); the room stays muted on that line
+    &out2=AUX         starting output for line 2's caller (any part of a device name, e.g. a
+                      Voicemeeter strip). Each card's Output menu changes it live; the choice is
+                      remembered per line on this PC.
     &l3.key=value     any option for line 3 only, e.g. &l3.audiodevice=Out%20B2
 -->
 <style>
@@ -51,6 +52,8 @@
 	button:disabled { opacity: .4; cursor: default; }
 	button.answer { background: var(--ok); border-color: var(--ok); }
 	button.hang { background: var(--bad); border-color: var(--bad); }
+	.outrow { display: flex; align-items: center; gap: 8px; padding: 0 12px 10px; font-size: 12px; color: var(--muted); }
+	.outrow select { flex: 1; min-width: 0; font: inherit; font-size: 13px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; }
 	.frame { position: relative; height: 170px; border-top: 1px solid var(--line); background: #000; }
 	.frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 	/* "Open" enlarges the same iframe in place (moving it in the DOM would reload the line) */
@@ -84,6 +87,7 @@
 			<button class="conn">Connect</button>
 			<button class="openb">Open</button>
 		</div>
+		<label class="outrow">Output <select class="outsel"><option value="">Off (not played here)</option></select></label>
 		<div class="frame"><iframe allow="microphone; camera; autoplay; display-capture; clipboard-write; fullscreen; local-network-access; local-network; loopback-network"></iframe></div>
 		<div class="closebar"><button class="closeb">Close</button></div>
 	</section>
@@ -118,11 +122,6 @@
 
 	function lineQuery(n) {
 		var q = new URLSearchParams(passThrough.toString());
-		var out = params.get("out" + n);
-		if (out) {
-			q.set("callinoutput", out);
-			q.set("callinmonitor", "");
-		}
 		params.forEach(function (value, key) {
 			var m = key.match(/^l(\d)\.(.+)$/);
 			if (m && parseInt(m[1], 10) === n) { q.set(m[2], value); }
@@ -141,6 +140,7 @@
 			chip: node.querySelector(".chip"), caller: node.querySelector(".caller"), timer: node.querySelector(".timer"),
 			status: node.querySelector(".status"), warn: node.querySelector(".warnline"),
 			answer: node.querySelector(".answer"), hang: node.querySelector(".hang"), conn: node.querySelector(".conn"),
+			outsel: node.querySelector(".outsel"),
 			callStart: 0
 		};
 		node.querySelector(".name").textContent = "Line " + n;
@@ -148,7 +148,7 @@
 		c.frame.title = "Phone Line " + n;
 		var extra = lineQuery(n);
 		c.frame.src = "./line" + n + ".html" + (extra ? "?" + extra : "");
-		if (params.get("out" + n)) { node.querySelector(".ext").textContent = "880" + n + " \u2192 " + params.get("out" + n); }
+		c.outsel.onchange = function () { saveOutput(c, c.outsel.value); };
 		c.answer.onclick = function () { call(c, "answerRinging"); };
 		c.hang.onclick = function () { call(c, "hangup"); };
 		c.conn.onclick = function () { call(c, "toggleConnect"); };
@@ -186,6 +186,60 @@
 		c.chip.className = "chip" + (cls ? " " + cls : "");
 	}
 
+	// ---- per-line output (caller's local playback), switchable live ----
+	var outputs = [];   // [{deviceId, label}]
+	function storeKey(n) { return "switchboard.output.line" + n; }
+	function readChoice(c) {
+		try {
+			var v = JSON.parse(localStorage.getItem(storeKey(c.n)) || "null");
+			if (v && typeof v === "object") { return v; }
+		} catch (e) {}
+		var p = params.get("out" + c.n);
+		return p ? { label: p } : { deviceId: "" };
+	}
+	function resolveChoice(choice) {
+		// returns the deviceId to use now ("" = off)
+		if (!choice) { return ""; }
+		if (choice.deviceId === "default") { return "default"; }
+		var i, want = String(choice.label || "").toLowerCase();
+		for (i = 0; i < outputs.length; i++) { if (choice.deviceId && outputs[i].deviceId === choice.deviceId) { return outputs[i].deviceId; } }
+		if (want) {
+			for (i = 0; i < outputs.length; i++) { if (outputs[i].label.toLowerCase() === want) { return outputs[i].deviceId; } }
+			for (i = 0; i < outputs.length; i++) { if (outputs[i].label.toLowerCase().indexOf(want) !== -1) { return outputs[i].deviceId; } }
+		}
+		return "";
+	}
+	function saveOutput(c, deviceId) {
+		var label = "";
+		outputs.forEach(function (o) { if (o.deviceId === deviceId) { label = o.label; } });
+		try { localStorage.setItem(storeKey(c.n), JSON.stringify({ deviceId: deviceId, label: label })); } catch (e) {}
+		c.applied = null; // re-apply on next refresh
+	}
+	function fillMenus() {
+		if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) { return; }
+		navigator.mediaDevices.enumerateDevices().then(function (list) {
+			outputs = list.filter(function (d) { return d.kind === "audiooutput" && d.deviceId !== "default" && d.deviceId !== "communications"; })
+				.map(function (d, i) { return { deviceId: d.deviceId, label: d.label || ("Output " + (i + 1)) }; });
+			cards.forEach(function (c) {
+				var want = resolveChoice(readChoice(c));
+				c.outsel.innerHTML = "";
+				[["", "Off (not played here)"], ["default", "System default output"]].concat(outputs.map(function (o) { return [o.deviceId, o.label]; }))
+					.forEach(function (pair) {
+						var opt = document.createElement("option");
+						opt.value = pair[0]; opt.textContent = pair[1];
+						c.outsel.appendChild(opt);
+					});
+				c.outsel.value = want;
+				c.applied = null;
+			});
+		}).catch(function () {});
+	}
+	if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+		navigator.mediaDevices.addEventListener("devicechange", fillMenus);
+	}
+	fillMenus();
+	setTimeout(fillMenus, 4000); // device names appear once the lines have microphone permission
+
 	function refresh() {
 		var reg = 0, onCall = 0, ringing = 0;
 		cards.forEach(function (c) {
@@ -200,6 +254,14 @@
 				c.answer.hidden = true; c.hang.disabled = true; c.conn.disabled = true;
 				return;
 			}
+			var want = c.outsel.value;
+			var outLabel = c.outsel.selectedOptions[0] ? c.outsel.selectedOptions[0].textContent : "";
+			// device IDs differ between frames, so lines are given the device's name
+			var target = want === "" || want === "default" ? want : outLabel;
+			if ((c.applied !== target || c.appliedWin !== a.w) && typeof a.callin.setOutput === "function") {
+				try { a.callin.setOutput(target); c.applied = target; c.appliedWin = a.w; } catch (e) {}
+			}
+			c.el.querySelector(".ext").textContent = "880" + c.n + (want ? " \u2192 " + outLabel.replace(/\s*\(.*\)$/, "") : "");
 			if (st.registered) { reg++; }
 			if (st.inCall) { onCall++; }
 			if (st.ringing) { ringing++; }
