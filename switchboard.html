@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone Switchboard</title>
+<!--
+  Phone Switchboard: several VDO.Ninja phone lines (lineN.html) in one window.
+  Each line is its own VDO.Ninja guest (its own tile for the director) running in an iframe.
+
+  URL options:
+    ?lines=1-9        which lines to show (ranges and lists: 1-4, 1,2,5)   default 1-9
+    &listen           play room/caller audio locally (default: lines are muted locally)
+    any other option  passed to every line, e.g. &audiodevice=Out%20B3&callinoutput=VAIO3
+-->
+<style>
+	:root {
+		--bg: #0f1216; --panel: #181d23; --panel2: #1f262e; --line: #2c3540;
+		--text: #e6ebf0; --muted: #8d99a6;
+		--idle: #3d4a57; --ok: #2f9e5b; --warn: #c98a1b; --ring: #d9480f; --call: #1c7ed6; --bad: #c92a2a;
+	}
+	* { box-sizing: border-box; }
+	html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+	header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+	header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .02em; }
+	header .sum { color: var(--muted); font-variant-numeric: tabular-nums; }
+	header .sum b { color: var(--text); }
+	header .spacer { flex: 1; }
+	header .hint { color: var(--muted); font-size: 12px; }
+	main { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 12px 16px 24px; }
+	.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+	.card.ringing { border-color: var(--ring); animation: ring 1s steps(2, start) infinite; }
+	@keyframes ring { 50% { box-shadow: 0 0 0 3px var(--ring); } }
+	.top { display: flex; align-items: center; gap: 10px; padding: 10px 12px 6px; }
+	.name { font-weight: 600; font-size: 15px; }
+	.ext { color: var(--muted); font-variant-numeric: tabular-nums; }
+	.chip { margin-left: auto; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--idle); white-space: nowrap; }
+	.chip.ok { background: var(--ok); } .chip.warn { background: var(--warn); } .chip.ring { background: var(--ring); }
+	.chip.call { background: var(--call); } .chip.bad { background: var(--bad); }
+	.who { padding: 0 12px; min-height: 22px; display: flex; gap: 10px; align-items: baseline; }
+	.who .caller { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.who .timer { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); }
+	.status { padding: 2px 12px 8px; color: var(--muted); font-size: 12px; min-height: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.warnline { margin: 0 12px 8px; padding: 6px 8px; border-radius: 6px; background: #3a2a0c; color: #ffd8a8; font-size: 12px; display: none; }
+	.btns { display: flex; gap: 8px; padding: 0 12px 10px; flex-wrap: wrap; }
+	button { font: inherit; font-size: 13px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+	button:hover:not(:disabled) { border-color: #4a5868; }
+	button:disabled { opacity: .4; cursor: default; }
+	button.answer { background: var(--ok); border-color: var(--ok); }
+	button.hang { background: var(--bad); border-color: var(--bad); }
+	.frame { position: relative; height: 170px; border-top: 1px solid var(--line); background: #000; }
+	.frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+	/* "Open" enlarges the same iframe in place (moving it in the DOM would reload the line) */
+	.card.open .frame { position: fixed; inset: 48px 24px 24px; height: auto; z-index: 20; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+	.closebar { display: none; position: fixed; top: 8px; right: 24px; z-index: 21; }
+	.card.open .closebar { display: block; }
+	.scrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 15; }
+	body.has-open .scrim { display: block; }
+	@media (max-width: 420px) { main { padding: 12px 16px; grid-template-columns: 1fr; } header .hint { display: none; } }
+</style>
+</head>
+<body>
+<header>
+	<h1>Phone Switchboard</h1>
+	<span class="sum" id="sum"></span>
+	<span class="spacer"></span>
+	<span class="hint">Open a line to enter its password the first time</span>
+</header>
+<div class="scrim"></div>
+<main id="board"></main>
+
+<template id="card-tpl">
+	<section class="card">
+		<div class="top"><span class="name"></span><span class="ext"></span><span class="chip">Loading</span></div>
+		<div class="who"><span class="caller"></span><span class="timer"></span></div>
+		<div class="status"></div>
+		<div class="warnline"></div>
+		<div class="btns">
+			<button class="answer" hidden>Answer</button>
+			<button class="hang" disabled>Hang up</button>
+			<button class="conn">Connect</button>
+			<button class="openb">Open</button>
+		</div>
+		<div class="frame"><iframe allow="microphone; camera; autoplay; display-capture; clipboard-write; fullscreen; local-network-access; local-network; loopback-network"></iframe></div>
+		<div class="closebar"><button class="closeb">Close</button></div>
+	</section>
+</template>
+
+<script>
+(function () {
+	"use strict";
+	var params = new URLSearchParams(location.search);
+
+	function parseLines(spec) {
+		var out = [];
+		String(spec || "1-9").split(",").forEach(function (part) {
+			var m = part.trim().match(/^(\d+)(?:-(\d+))?$/);
+			if (!m) { return; }
+			var a = parseInt(m[1], 10), b = m[2] ? parseInt(m[2], 10) : a;
+			for (var n = Math.min(a, b); n <= Math.max(a, b); n++) {
+				if (n >= 1 && n <= 9 && out.indexOf(n) === -1) { out.push(n); }
+			}
+		});
+		return out.length ? out : [1];
+	}
+
+	var lines = parseLines(params.get("lines"));
+	var passThrough = new URLSearchParams();
+	params.forEach(function (value, key) {
+		if (key !== "lines" && key !== "listen") { passThrough.append(key, value); }
+	});
+	// every line joins the room by itself and connects once its password is saved
+	["miconly", "autostart", "sipauto"].forEach(function (k) { if (!passThrough.has(k)) { passThrough.append(k, ""); } });
+	if (!params.has("listen") && !passThrough.has("mutespeaker")) { passThrough.append("mutespeaker", ""); }
+	var extra = passThrough.toString().replace(/=(&|$)/g, "$1");
+
+	var board = document.getElementById("board");
+	var tpl = document.getElementById("card-tpl");
+	var cards = [];
+
+	lines.forEach(function (n) {
+		var node = tpl.content.firstElementChild.cloneNode(true);
+		var c = {
+			n: n, el: node, frame: node.querySelector("iframe"),
+			chip: node.querySelector(".chip"), caller: node.querySelector(".caller"), timer: node.querySelector(".timer"),
+			status: node.querySelector(".status"), warn: node.querySelector(".warnline"),
+			answer: node.querySelector(".answer"), hang: node.querySelector(".hang"), conn: node.querySelector(".conn"),
+			callStart: 0
+		};
+		node.querySelector(".name").textContent = "Line " + n;
+		node.querySelector(".ext").textContent = "880" + n;
+		c.frame.title = "Phone Line " + n;
+		c.frame.src = "./line" + n + ".html" + (extra ? "?" + extra : "");
+		c.answer.onclick = function () { call(c, "answerRinging"); };
+		c.hang.onclick = function () { call(c, "hangup"); };
+		c.conn.onclick = function () { call(c, "toggleConnect"); };
+		node.querySelector(".openb").onclick = function () { setOpen(c, true); };
+		node.querySelector(".closeb").onclick = function () { setOpen(c, false); };
+		board.appendChild(node);
+		cards.push(c);
+	});
+
+	function setOpen(c, open) {
+		cards.forEach(function (o) { o.el.classList.toggle("open", open && o === c); });
+		document.body.classList.toggle("has-open", open);
+	}
+	document.querySelector(".scrim").onclick = function () { setOpen(null, false); };
+	document.addEventListener("keydown", function (e) { if (e.key === "Escape") { setOpen(null, false); } });
+
+	function api(c) {
+		try {
+			var w = c.frame.contentWindow;
+			return w && w.session ? { w: w, callin: w.session.callin } : null;
+		} catch (e) { return null; }
+	}
+	function call(c, fn) {
+		var a = api(c);
+		if (a && a.callin && typeof a.callin[fn] === "function") {
+			try { a.callin[fn](); } catch (e) { console.error(e); }
+		}
+	}
+	function fmt(ms) {
+		var s = Math.floor(ms / 1000);
+		return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+	}
+	function setChip(c, text, cls) {
+		c.chip.textContent = text;
+		c.chip.className = "chip" + (cls ? " " + cls : "");
+	}
+
+	function refresh() {
+		var reg = 0, onCall = 0, ringing = 0;
+		cards.forEach(function (c) {
+			var a = api(c);
+			var st = a && a.callin && typeof a.callin.getLineStatus === "function" ? a.callin.getLineStatus() : null;
+			var inRoom = !!(a && a.w.session.videoElement && a.w.session.videoElement.id === "videosource");
+			c.el.classList.toggle("ringing", !!(st && st.ringing));
+			if (!st) {
+				setChip(c, "Loading", "");
+				c.status.textContent = "";
+				c.warn.style.display = "none";
+				c.answer.hidden = true; c.hang.disabled = true; c.conn.disabled = true;
+				return;
+			}
+			if (st.registered) { reg++; }
+			if (st.inCall) { onCall++; }
+			if (st.ringing) { ringing++; }
+			if (st.inCall) {
+				if (!c.callStart) { c.callStart = Date.now(); }
+				setChip(c, "On call", "call");
+			} else {
+				c.callStart = 0;
+				if (st.ringing) { setChip(c, "Ringing", "ring"); }
+				else if (st.registered) { setChip(c, "Ready", "ok"); }
+				else if (st.pending) { setChip(c, "Connecting", "warn"); }
+				else if (!st.hasPassword) { setChip(c, "Needs password", "warn"); }
+				else { setChip(c, "Offline", "bad"); }
+			}
+			c.caller.textContent = st.caller || "";
+			c.timer.textContent = c.callStart ? fmt(Date.now() - c.callStart) : "";
+			c.status.textContent = st.status || "";
+			c.status.title = st.status || "";
+			if (!inRoom) {
+				c.warn.textContent = "Not in the room yet: calls would be silent. Open the line and Join if it doesn't join by itself.";
+				c.warn.style.display = "block";
+			} else {
+				c.warn.style.display = "none";
+			}
+			c.answer.hidden = !st.ringing;
+			c.hang.disabled = !(st.inCall || st.ringing);
+			c.conn.disabled = !!st.pending;
+			c.conn.textContent = st.connected ? "Disconnect" : "Connect";
+		});
+		document.getElementById("sum").innerHTML =
+			"<b>" + reg + "</b>/" + cards.length + " ready &middot; <b>" + onCall + "</b> on call" + (ringing ? " &middot; <b>" + ringing + "</b> ringing" : "");
+		document.title = (onCall ? "(" + onCall + ") " : "") + "Phone Switchboard";
+	}
+	setInterval(refresh, 500);
+	refresh();
+})();
+</script>
+</body>
+</html>

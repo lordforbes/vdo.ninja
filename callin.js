@@ -152,8 +152,25 @@
 		return false;
 	}
 
+	// Saved SIP profiles are kept per extension when the URL names one (&sipuser=8801),
+	// so several phone lines can run on the same site (e.g. switchboard.html) without
+	// overwriting each other's saved login. Without &sipuser the original key is used.
+	function sipProfileKey() {
+		var user = String(getParam(["sipuser", "callinuser"], "") || "").trim();
+		return user ? SIP_PROFILE_STORAGE_KEY + "." + user : SIP_PROFILE_STORAGE_KEY;
+	}
+
 	function readSipProfile() {
-		var profile = readStoredObject(SIP_PROFILE_STORAGE_KEY);
+		var key = sipProfileKey();
+		var profile = readStoredObject(key);
+		if ((!profile || typeof profile !== "object") && key !== SIP_PROFILE_STORAGE_KEY) {
+			// carry over a profile saved before per-extension keys, if it is for this extension
+			var legacy = readStoredObject(SIP_PROFILE_STORAGE_KEY);
+			var user = String(getParam(["sipuser", "callinuser"], "") || "").trim();
+			if (legacy && typeof legacy === "object" && String(legacy.authUser || "").trim() === user) {
+				profile = legacy;
+			}
+		}
 		if (!profile || typeof profile !== "object") {
 			return {};
 		}
@@ -1261,6 +1278,7 @@
 					state.incomingBox.remove();
 				} catch (e) {}
 				state.incomingBox = null;
+				state.incomingFrom = "";
 			}
 		}
 
@@ -1801,6 +1819,7 @@
 			title.textContent = "Incoming phone call";
 			var detail = document.createElement("div");
 			detail.textContent = from;
+			state.incomingFrom = from;
 			var actions = document.createElement("div");
 			actions.className = "vdo-callin-actions";
 			var accept = makeButton("Answer", "");
@@ -2041,6 +2060,7 @@
 			title.textContent = "Incoming call";
 			var detail = document.createElement("div");
 			detail.textContent = from;
+			state.incomingFrom = from;
 			var actions = document.createElement("div");
 			actions.className = "vdo-callin-actions";
 			var accept = makeButton("Answer", "");
@@ -2730,7 +2750,7 @@
 				if (!changed) {
 					return false;
 				}
-				writeStoredObject(SIP_PROFILE_STORAGE_KEY, profile);
+				writeStoredObject(sipProfileKey(), profile);
 				return true;
 			}
 
@@ -2777,7 +2797,7 @@
 				if (profile.rememberPassword && state.fields.password.value) {
 					profile.password = state.fields.password.value;
 				}
-				if (!writeStoredObject(SIP_PROFILE_STORAGE_KEY, profile)) {
+				if (!writeStoredObject(sipProfileKey(), profile)) {
 					setStatus("Could not save SIP profile in this browser.");
 					return;
 				}
@@ -2787,7 +2807,7 @@
 			}
 
 			function forgetSipProfile() {
-				removeStoredObject(SIP_PROFILE_STORAGE_KEY);
+				removeStoredObject(sipProfileKey());
 				state.savedSipIdentity = null;
 				state.sipPasswordRequired = false;
 				state.fields.password.value = "";
@@ -2902,10 +2922,63 @@
 		if (paramEnabled(["sipauto", "callinauto"])) {
 			setTimeout(function () {
 				if (state.fields.provider.value === "sip" || state.fields.provider.value === "signalwire") {
+					if (state.fields.provider.value === "sip" && state.fields.password && !state.fields.password.value) {
+						// No saved password yet: connecting would fail and lock the fields.
+						setStatus("Enter this line's password, tick Remember, Save profile, then Connect.");
+						return;
+					}
 					connectSip();
 				}
 			}, 100);
 		}
+
+		// Small read/control surface for pages that host several lines (switchboard.html).
+		session.callin.getLineStatus = function () {
+			var ua = state.ua;
+			var registered = false;
+			try {
+				registered = !!(ua && typeof ua.isRegistered === "function" && ua.isRegistered());
+			} catch (e) {}
+			var caller = "";
+			try {
+				var s = state.activeSession;
+				if (s && s.remote_identity) {
+					caller = s.remote_identity.display_name || (s.remote_identity.uri && s.remote_identity.uri.user) || "";
+				}
+			} catch (e) {}
+			if (!caller && state.incomingBox) {
+				caller = state.incomingFrom || "";
+			}
+			return {
+				user: state.fields.authUser ? state.fields.authUser.value : "",
+				connected: !!ua,
+				pending: !!state.connectionPending,
+				registered: registered,
+				ringing: !!state.incomingBox,
+				inCall: !!state.activeSession && !state.incomingBox,
+				caller: String(caller || "").trim(),
+				hasPassword: !!(state.fields.password && state.fields.password.value),
+				status: state.status ? state.status.textContent : ""
+			};
+		};
+		session.callin.toggleConnect = function () {
+			if (state.connectButton && !state.connectButton.disabled) {
+				state.connectButton.click();
+			}
+		};
+		session.callin.answerRinging = function () {
+			if (!state.incomingBox) {
+				return false;
+			}
+			var buttons = state.incomingBox.querySelectorAll("button");
+			for (var i = 0; i < buttons.length; i++) {
+				if (/answer/i.test(buttons[i].textContent || "")) {
+					buttons[i].click();
+					return true;
+				}
+			}
+			return false;
+		};
 	}
 
 	window.setupCallIn = setupCallIn;
