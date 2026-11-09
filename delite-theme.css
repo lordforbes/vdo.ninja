@@ -1,0 +1,273 @@
+/*
+ * Delite front-page theme (site-specific, not part of upstream VDO.Ninja).
+ * Applies only when delite-theme.js marks the bare front page with html.dl-home.
+ * Palette and type follow switchboard.html.
+ */
+html.dl-home {
+	--dl-bg: #0f1216;
+	--dl-panel: #161b21;
+	--dl-raised: #1d232a;
+	--dl-rule: #2a333d;
+	--dl-rule-hi: #3b4653;
+	--dl-ink: #e6ebf0;
+	--dl-muted: #8d99a6;
+	--dl-air: #e8412f;        /* the ON AIR light: Join button and wordmark dot only */
+	--dl-air-hi: #f25542;
+	--dl-focus: #5aa2ff;
+	--dl-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	background: var(--dl-bg);
+}
+html.dl-home body {
+	background: var(--dl-bg) !important;
+	color: var(--dl-ink);
+	font-family: var(--dl-font);
+}
+
+/* ---------- identity + hero: join a room ---------- */
+html.dl-home #header {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 1120px;
+	margin: 0 auto;
+	padding: 28px 24px 0;
+	background: transparent !important;
+	border: 0;
+	color: var(--dl-ink);
+	align-self: auto !important;
+}
+html.dl-home #header::before {
+	content: "Delite Online";
+	display: block;
+	margin-bottom: 56px;
+	padding-left: 18px;
+	font-size: 15px;
+	font-weight: 650;
+	letter-spacing: 0.01em;
+	color: var(--dl-ink);
+	background: radial-gradient(circle at 5px 50%, var(--dl-air) 4px, transparent 5px) no-repeat;
+}
+html.dl-home #head1 {
+	display: flex !important;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	max-width: 640px;
+	padding: 0;
+}
+html.dl-home #head1::before {
+	content: "Join a room";
+	flex-basis: 100%;
+	margin-bottom: 6px;
+	font-size: 28px;
+	line-height: 34px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+	color: var(--dl-ink);
+}
+html.dl-home #head1::after {
+	content: "Enter the room name you were given. Producers can create a room below.";
+	flex-basis: 100%;
+	margin-top: 2px;
+	font-size: 13px;
+	line-height: 18px;
+	color: var(--dl-muted);
+}
+html.dl-home #joinroomID {
+	flex: 1 1 260px;
+	box-sizing: border-box;
+	height: 48px;
+	margin: 0;
+	padding: 0 14px;
+	font: 17px/1 var(--dl-font);
+	color: var(--dl-ink);
+	background: var(--dl-panel);
+	border: 1px solid var(--dl-rule);
+	border-radius: 8px;
+}
+html.dl-home #joinroomID::placeholder { color: #6c7885; }
+html.dl-home #joinroomID:focus {
+	outline: none;
+	border-color: var(--dl-focus);
+	box-shadow: 0 0 0 3px rgba(90, 162, 255, 0.25);
+}
+html.dl-home #jumptoroomButton {
+	height: 48px;
+	margin: 0;
+	padding: 0 24px;
+	font: 600 15px/1 var(--dl-font);
+	color: #fff;
+	background: var(--dl-air);
+	border: 0;
+	border-radius: 8px;
+	cursor: pointer;
+}
+html.dl-home #jumptoroomButton:hover { background: var(--dl-air-hi); }
+html.dl-home #jumptoroomButton:focus-visible {
+	outline: 2px solid var(--dl-focus);
+	outline-offset: 2px;
+}
+
+/* ---------- options: compact tiles ---------- */
+html.dl-home #mainmenu {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	gap: 12px;
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 1120px;
+	margin: 0 auto;
+	padding: 48px 24px 0;
+	text-align: left;
+}
+html.dl-home #mainmenu > .column {
+	position: relative;
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	width: auto;
+	min-width: 0;
+	height: auto;
+	min-height: 72px;
+	max-width: none !important;
+	min-width: 0 !important;
+	float: none !important;
+	margin: 0;
+	padding: 14px 16px 14px 62px !important;
+	text-align: left;
+	background-color: var(--dl-panel) !important;
+	background-size: 28px !important;
+	background-position: 19px 50% !important;
+	background-repeat: no-repeat !important;
+	border: 1px solid var(--dl-rule);
+	border-radius: 10px;
+	box-shadow: none !important;
+	transform: none;
+	transition: border-color 0.15s ease, background-color 0.15s ease;
+	overflow: hidden !important;
+}
+html.dl-home #mainmenu > .column.hidden { display: none; }
+html.dl-home #mainmenu > .column:hover {
+	background-color: var(--dl-raised) !important;
+	border-color: var(--dl-rule-hi);
+}
+html.dl-home #mainmenu > .column:focus-visible {
+	outline: 2px solid var(--dl-focus);
+	outline-offset: 2px;
+}
+html.dl-home #mainmenu > .column > h2 {
+	margin: 0;
+	font: 600 15px/20px var(--dl-font);
+	color: var(--dl-ink);
+	text-align: left;
+}
+html.dl-home #mainmenu > .column > i,
+html.dl-home #mainmenu > .column > h2 + i,
+html.dl-home #mainmenu > .column .largeDarkIcon {
+	position: absolute;
+	left: 17px;
+	top: 50%;
+	margin: 0 !important;
+	transform: translateY(-50%);
+	font-size: 30px !important;
+	line-height: 1;
+	color: #aab4bf !important;
+}
+
+/* a card that has been opened shows its form: give it the full row and its natural height */
+html.dl-home #mainmenu > .column:has(> .container-inner[style*="block"]),
+html.dl-home #mainmenu > .column.in-animation,
+html.dl-home #mainmenu > .column.skip-animation {
+	grid-column: 1 / -1;
+	display: block;
+	padding: 24px !important;
+	min-height: 0;
+	background-image: none !important;
+	overflow: auto !important;
+	/* the forms inside are VDO.Ninja's own light panels: keep their colours */
+	background-color: var(--lighttheme-3, #eceef1) !important;
+	color: #16191d;
+	font-family: inherit;
+}
+html.dl-home #mainmenu > .column.in-animation > h2,
+html.dl-home #mainmenu > .column.skip-animation > h2 { color: #16191d; }
+html.dl-home #mainmenu > .column.in-animation .container-inner :is(label, span, p, div, td, th, b, strong, small, font),
+html.dl-home #mainmenu > .column.skip-animation .container-inner :is(label, span, p, div, td, th, b, strong, small, font) {
+	color: #16191d !important;
+}
+
+/* ---------- more options ---------- */
+html.dl-home #dropButton {
+	grid-column: 1 / -1;
+	justify-self: start;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	width: auto;
+	height: auto;
+	margin: 4px 0 0;
+	padding: 8px 12px 8px 10px;
+	background: transparent !important;
+	border: 1px solid var(--dl-rule);
+	border-radius: 8px;
+	color: var(--dl-muted);
+	font: 500 13px/1 var(--dl-font);
+	cursor: pointer;
+}
+html.dl-home #dropButton::after { content: "More options"; }
+html.dl-home #dropButton i { font-size: 16px; color: var(--dl-muted); }
+html.dl-home #dropButton:hover { color: var(--dl-ink); border-color: var(--dl-rule-hi); }
+html.dl-home #dropButton:hover i { color: var(--dl-ink); }
+html.dl-home #dropButton:focus-visible { outline: 2px solid var(--dl-focus); outline-offset: 2px; }
+
+/* ---------- about + credits: quiet, at the end of the page ---------- */
+html.dl-home #info {
+	grid-column: 1 / -1;
+	width: auto;
+	margin: 40px 0 0;
+	padding: 24px 0 0;
+	border-top: 1px solid var(--dl-rule);
+	background: transparent;
+	text-align: left;
+}
+html.dl-home #info center { text-align: left; }
+html.dl-home #info .infoblob {
+	max-width: 70ch;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	color: var(--dl-muted);
+	font: 14px/22px var(--dl-font);
+}
+html.dl-home #info .infoblob h2 {
+	margin: 0 0 8px;
+	font: 600 15px/20px var(--dl-font);
+	color: var(--dl-ink);
+}
+html.dl-home #info .infoblob li { margin-left: 1.25em; padding-left: 0.25em; list-style-position: outside; }
+html.dl-home #info a { color: #8fb8ff; }
+html.dl-home #credits {
+	grid-column: 1 / -1;
+	position: static !important;
+	width: auto;
+	margin: 0;
+	padding: 24px 0 32px;
+	text-align: left;
+	font: 12px/18px var(--dl-font);
+	color: #6c7885 !important;
+}
+html.dl-home #credits a { color: #6c7885 !important; }
+
+/* ---------- small screens ---------- */
+@media (max-width: 600px) {
+	html.dl-home #header { padding: 20px 16px 0; }
+	html.dl-home #header::before { margin-bottom: 36px; }
+	html.dl-home #head1::before { font-size: 24px; line-height: 30px; }
+	html.dl-home #mainmenu { padding: 36px 16px 0; grid-template-columns: 1fr; gap: 10px; }
+	html.dl-home #joinroomID { flex: 1 1 0; min-width: 0; }
+	html.dl-home #jumptoroomButton { flex: 0 0 auto; padding: 0 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+	html.dl-home #mainmenu > .column { transition: none; }
+}
