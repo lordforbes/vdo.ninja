@@ -996,7 +996,9 @@
 
 		function applySpeakerMute() {
 			if (state.remoteAudio) {
-				state.remoteAudio.muted = !!(window.session && session.speakerMuted);
+				// &callinmonitor keeps the caller's local playback (e.g. to a Voicemeeter strip
+				// chosen with &callinoutput) even when the page's speaker is muted.
+				state.remoteAudio.muted = !!(window.session && session.speakerMuted) && !paramEnabled(["callinmonitor", "sipmonitor"]);
 			}
 			if (state.twilioAudio) {
 				// Once the stream is attached to remoteAudio, keep the SDK-owned
