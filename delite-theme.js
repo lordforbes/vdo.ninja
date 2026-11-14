@@ -45,6 +45,21 @@
 		if (go && go.textContent.trim() === "GO") {
 			go.textContent = "Join";
 		}
+		// Audio-only entry: joins the same room with the microphone only (no camera needed)
+		if (go && !document.getElementById("dlAudioJoin")) {
+			var audio = document.createElement("button");
+			audio.id = "dlAudioJoin";
+			audio.type = "button";
+			audio.textContent = "Audio only";
+			audio.title = "Join with your microphone only - no camera needed";
+			audio.addEventListener("click", joinAudioOnly);
+			go.insertAdjacentElement("afterend", audio);
+		}
+		if (input) {
+			input.addEventListener("keydown", function (e) {
+				if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); joinAudioOnly(); }
+			});
+		}
 		var more = document.getElementById("dropButton");
 		if (more) {
 			more.removeAttribute("aria-hidden");
@@ -55,6 +70,27 @@
 				if (e.key === "Enter" || e.key === " ") { e.preventDefault(); more.click(); }
 			});
 		}
+	}
+
+	async function joinAudioOnly() {
+		var input = document.getElementById("joinroomID");
+		var raw = input ? input.value : "";
+		var room = typeof sanitizeRoomName === "function" ? sanitizeRoomName(raw) : raw.replace(/[^A-Za-z0-9_]/g, "");
+		if (!room) {
+			if (input) { input.focus(); input.classList.remove("shake"); setTimeout(function () { input.classList.add("shake"); }, 10); }
+			return;
+		}
+		var passStr = "";
+		try {
+			if (typeof promptAlt === "function") {
+				var pass = await promptAlt(typeof getTranslation === "function" ? getTranslation("enter-password-if-desired") : "Room password (if you were given one)", false, true);
+				if (pass && pass.length) {
+					passStr = "&password=" + encodeURIComponent(typeof sanitizePassword === "function" ? sanitizePassword(pass) : pass);
+				}
+			}
+		} catch (e) {}
+		try { sessionStorage.setItem("jvi", "1"); } catch (e) {}
+		window.location.href = "./?room=" + encodeURIComponent(room) + passStr + "&miconly";
 	}
 
 	if (document.readyState === "loading") {

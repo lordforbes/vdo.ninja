@@ -67,7 +67,7 @@ html.dl-home #head1::before {
 	color: var(--dl-ink);
 }
 html.dl-home #head1::after {
-	content: "Enter the room name you were given. Producers can create a room below.";
+	content: "Enter the room name you were given. No camera? Choose Audio only. Producers can create a room below.";
 	flex-basis: 100%;
 	margin-top: 2px;
 	font-size: 13px;
@@ -104,6 +104,19 @@ html.dl-home #jumptoroomButton {
 	cursor: pointer;
 }
 html.dl-home #jumptoroomButton:hover { background: var(--dl-air-hi); }
+html.dl-home #dlAudioJoin {
+	height: 48px;
+	margin: 0;
+	padding: 0 18px;
+	font: 600 15px/1 var(--dl-font);
+	color: var(--dl-ink);
+	background: var(--dl-raised);
+	border: 1px solid var(--dl-rule-hi);
+	border-radius: 8px;
+	cursor: pointer;
+}
+html.dl-home #dlAudioJoin:hover { border-color: var(--dl-muted); }
+html.dl-home #dlAudioJoin:focus-visible { outline: 2px solid var(--dl-focus); outline-offset: 2px; }
 html.dl-home #jumptoroomButton:focus-visible {
 	outline: 2px solid var(--dl-focus);
 	outline-offset: 2px;
@@ -267,6 +280,7 @@ html.dl-home #credits a { color: #6c7885 !important; }
 	html.dl-home #mainmenu { padding: 36px 16px 0; grid-template-columns: 1fr; gap: 10px; }
 	html.dl-home #joinroomID { flex: 1 1 0; min-width: 0; }
 	html.dl-home #jumptoroomButton { flex: 0 0 auto; padding: 0 20px; }
+	html.dl-home #dlAudioJoin { flex: 0 0 auto; padding: 0 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
 	html.dl-home #mainmenu > .column { transition: none; }
