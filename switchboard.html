@@ -410,7 +410,8 @@
 	setInterval(function () {
 		var now = Date.now(), lag = now - lastTick - 1000;
 		lastTick = now;
-		if (lag > 3000 && now - startedAt > 30000) { // ignore the busy first seconds while the lines load worstLag = Math.max(worstLag, lag); lagAt = now; }
+		// (the first 30 s are ignored: the lines are busy loading then)
+		if (lag > 3000 && now - startedAt > 30000) { worstLag = Math.max(worstLag, lag); lagAt = now; }
 		var bar = document.getElementById("lagbar");
 		var recent = lagAt && now - lagAt < 10 * 60 * 1000;
 		if (recent) {
