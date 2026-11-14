@@ -14,6 +14,8 @@
     ?lines=1-9        which lines to show (ranges and lists: 1-4, 1,2,5)   default 1-9
     &listen           play room/caller audio locally (default: lines are muted locally)
     &video            let the lines receive guests' video (default: audio only, much lighter)
+    &crosstalk        let phone lines connect to (and hear) each other directly (default: off;
+                      callers hear each other through the station feed instead)
     any other option  passed to every line, e.g. &audiodevice=Out%20B3
     &out2=AUX         starting output for line 2's caller (any part of a device name, e.g. a
                       Voicemeeter strip). Each card's Output menu changes it live; the choice is
@@ -156,7 +158,7 @@
 	var lines = parseLines(params.get("lines"));
 	var passThrough = new URLSearchParams();
 	params.forEach(function (value, key) {
-		if (key !== "lines" && key !== "listen" && key !== "video" && !/^out\d$/.test(key) && !/^l\d\./.test(key)) { passThrough.append(key, value); }
+		if (key !== "lines" && key !== "listen" && key !== "video" && key !== "crosstalk" && !/^out\d$/.test(key) && !/^l\d\./.test(key)) { passThrough.append(key, value); }
 	});
 	// every line joins the room by itself and connects once its password is saved
 	["miconly", "autostart", "sipauto"].forEach(function (k) { if (!passThrough.has(k)) { passThrough.append(k, ""); } });
@@ -164,6 +166,12 @@
 	// phone lines only need the room's audio: not receiving guests' video saves a lot of CPU here
 	// (and the video guests no longer encode a stream for every phone line)
 	if (!params.has("video") && !passThrough.has("novideo")) { passThrough.append("novideo", ""); }
+	// phone lines don't connect to each other (9 lines would otherwise make 72 connections inside
+	// this one window, all encoding and decoding audio). Callers still hear the presenter, the
+	// guests and the line's own input (the station feed). &crosstalk lets lines hear each other.
+	if (!params.has("crosstalk") && !passThrough.has("exclude")) {
+		passThrough.append("exclude", [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (n) { return "phoneline" + n; }).join(","));
+	}
 
 	function lineQuery(n) {
 		var q = new URLSearchParams(passThrough.toString());
@@ -415,9 +423,11 @@
 		var bar = document.getElementById("lagbar");
 		var recent = lagAt && now - lagAt < 10 * 60 * 1000;
 		if (recent) {
-			var txt = "<b>Chrome paused this board for " + Math.round(worstLag / 1000) + " seconds</b> at " +
-				new Date(lagAt).toLocaleTimeString() + " (" + document.visibilityState + " now). While paused the lines can't answer the PBX, so calls fail without ringing. " +
-				"Run the board from the Phone Switchboard shortcut in its own window, and in Chrome Settings &rarr; Performance keep this site always active.";
+			var inApp = /Electron\//.test(navigator.userAgent);
+			var txt = "<b>The board stalled for " + Math.round(worstLag / 1000) + " seconds</b> at " +
+				new Date(lagAt).toLocaleTimeString() + " (" + document.visibilityState + " now). While stalled the lines can't answer the PBX, so calls can fail without ringing. " +
+				(inApp ? "The app never pauses the board, so this PC was too busy: check Task Manager, and try fewer lines (?lines=1-4 in the app's config.json url)."
+					: "Either Chrome paused it (run the Delite Phone Board app instead of a Chrome tab) or this PC was too busy.");
 			if (bar.innerHTML !== txt) { bar.innerHTML = txt; }
 			bar.hidden = false;
 		} else if (!bar.hidden) {
