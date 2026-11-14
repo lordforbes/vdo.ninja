@@ -1,0 +1,44 @@
+# Builds the Delite Phone Board Windows app (phoneboard-app/) and attaches the installer and
+# the portable .exe to a GitHub release. Run it by pushing a tag like phoneboard-v1.0.0, or
+# from the Actions tab ("Run workflow").
+name: Phone Board app
+
+on:
+  push:
+    tags: ["phoneboard-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: phoneboard-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build installer and portable app
+        run: npx electron-builder --win nsis portable --x64 --publish never
+      - name: Keep the build with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: DelitePhoneBoard-windows
+          path: |
+            phoneboard-app/dist/*.exe
+          if-no-files-found: error
+      - name: Attach to the release for this tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Delite Phone Board ${tag#phoneboard-}" --notes "Windows app for the phone switchboard. Install with the Setup .exe (recommended) or run the portable .exe." --latest=false
+          gh release upload "$tag" dist/*.exe --clobber
