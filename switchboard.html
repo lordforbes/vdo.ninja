@@ -6,11 +6,14 @@
 <title>Phone Switchboard</title>
 <!--
   Phone Switchboard: several VDO.Ninja phone lines (lineN.html) in one window.
-  Each line is its own VDO.Ninja guest (its own tile for the director) running in an iframe.
+  Each line is its own VDO.Ninja guest (its own tile for the director) running in a hidden
+  iframe; the card shows its state, the caller, live levels and the controls. "Setup" shows
+  the full line page (first-time password, troubleshooting).
 
   URL options:
     ?lines=1-9        which lines to show (ranges and lists: 1-4, 1,2,5)   default 1-9
     &listen           play room/caller audio locally (default: lines are muted locally)
+    &video            let the lines receive guests' video (default: audio only, much lighter)
     any other option  passed to every line, e.g. &audiodevice=Out%20B3
     &out2=AUX         starting output for line 2's caller (any part of a device name, e.g. a
                       Voicemeeter strip). Each card's Output menu changes it live; the choice is
@@ -19,50 +22,80 @@
 -->
 <style>
 	:root {
-		--bg: #0f1216; --panel: #181d23; --panel2: #1f262e; --line: #2c3540;
-		--text: #e6ebf0; --muted: #8d99a6;
-		--idle: #3d4a57; --ok: #2f9e5b; --warn: #c98a1b; --ring: #d9480f; --call: #1c7ed6; --bad: #c92a2a;
+		--bg: #0f1216; --panel: #161b21; --panel2: #1f262e; --line: #2a333d; --line-hi: #3b4653;
+		--text: #e6ebf0; --muted: #8d99a6; --faint: #5d6874;
+		--idle: #3d4a57; --ok: #2f9e5b; --warn: #c98a1b; --ring: #e8412f; --call: #1c7ed6; --bad: #c92a2a;
+		--focus: #5aa2ff;
 	}
 	* { box-sizing: border-box; }
-	html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+	html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 	header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
-	header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .02em; }
+	header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .01em; }
 	header .sum { color: var(--muted); font-variant-numeric: tabular-nums; }
 	header .sum b { color: var(--text); }
 	header .spacer { flex: 1; }
 	header .hint { color: var(--muted); font-size: 12px; }
-	main { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 12px 16px 24px; }
-	.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+	main { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; padding: 12px 16px 24px; align-items: start; }
+
+	.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; }
+	.card.oncall { border-color: var(--call); }
 	.card.ringing { border-color: var(--ring); animation: ring 1s steps(2, start) infinite; }
 	@keyframes ring { 50% { box-shadow: 0 0 0 3px var(--ring); } }
-	.top { display: flex; align-items: center; gap: 10px; padding: 10px 12px 6px; }
-	.name { font-weight: 600; font-size: 15px; }
-	.ext { color: var(--muted); font-variant-numeric: tabular-nums; }
+	@media (prefers-reduced-motion: reduce) { .card.ringing { animation: none; box-shadow: 0 0 0 3px var(--ring); } }
+
+	.top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+	.name { font-weight: 650; font-size: 15px; }
+	.ext { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 	.chip { margin-left: auto; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--idle); white-space: nowrap; }
 	.chip.ok { background: var(--ok); } .chip.warn { background: var(--warn); } .chip.ring { background: var(--ring); }
 	.chip.call { background: var(--call); } .chip.bad { background: var(--bad); }
-	.who { padding: 0 12px; min-height: 22px; display: flex; gap: 10px; align-items: baseline; }
-	.who .caller { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.who .timer { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); }
-	.status { padding: 2px 12px 8px; color: var(--muted); font-size: 12px; min-height: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.warnline { margin: 0 12px 8px; padding: 6px 8px; border-radius: 6px; background: #3a2a0c; color: #ffd8a8; font-size: 12px; display: none; }
-	.btns { display: flex; gap: 8px; padding: 0 12px 10px; flex-wrap: wrap; }
-	button { font: inherit; font-size: 13px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
-	button:hover:not(:disabled) { border-color: #4a5868; }
-	button:disabled { opacity: .4; cursor: default; }
-	button.answer { background: var(--ok); border-color: var(--ok); }
-	button.hang { background: var(--bad); border-color: var(--bad); }
-	.outrow { display: flex; align-items: center; gap: 8px; padding: 0 12px 10px; font-size: 12px; color: var(--muted); }
-	.outrow select { flex: 1; min-width: 0; font: inherit; font-size: 13px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; }
-	.frame { position: relative; height: 170px; border-top: 1px solid var(--line); background: #000; }
-	.frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-	/* "Open" enlarges the same iframe in place (moving it in the DOM would reload the line) */
-	.card.open .frame { position: fixed; inset: 48px 24px 24px; height: auto; z-index: 20; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
-	.closebar { display: none; position: fixed; top: 8px; right: 24px; z-index: 21; }
-	.card.open .closebar { display: block; }
-	.scrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 15; }
+
+	/* caller line: fixed height so cards never jump */
+	.who { display: flex; align-items: baseline; gap: 10px; height: 26px; min-width: 0; }
+	.who .caller { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+	.who .caller.idle { font-size: 13px; font-weight: 400; color: var(--faint); }
+	.who .timer { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 15px; }
+
+	/* level meters: always present (dim when idle) so the layout stays still */
+	.meters { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--muted); }
+	/* coloured scale underneath; the dark cover shrinks from the right as the level rises */
+	.meter { position: relative; height: 6px; border-radius: 3px; overflow: hidden; background: linear-gradient(90deg, #2f9e5b 0 70%, #c98a1b 70% 88%, #e8412f 88%); }
+	.meter i { position: absolute; top: 0; right: -1px; bottom: 0; width: calc(100% + 2px); background: var(--panel2); transition: width .08s linear; }
+	@media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+
+	.row { display: flex; gap: 8px; align-items: center; }
+	button, select { font: inherit; font-size: 13px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; }
+	button { padding: 6px 12px; cursor: pointer; }
+	button:hover:not(:disabled) { border-color: var(--line-hi); }
+	button:disabled { opacity: .35; cursor: default; }
+	button:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+	button.answer { background: var(--ok); border-color: var(--ok); font-weight: 600; }
+	button.hang.live { background: var(--bad); border-color: var(--bad); font-weight: 600; }
+	button { white-space: nowrap; }
+	.row.main button { flex: 1; padding: 8px 12px; }
+	.row.foot { gap: 6px; }
+	.row .quiet { margin-left: auto; display: flex; gap: 6px; flex: none; }
+	.row .quiet button { background: transparent; color: var(--muted); padding: 4px 9px; font-size: 12px; }
+	.row .quiet button:hover:not(:disabled) { color: var(--text); }
+
+	.outrow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+	.outrow select { flex: 1; min-width: 0; padding: 5px 6px; }
+
+	.status { flex: 1; min-width: 0; color: var(--faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.warnline { padding: 6px 8px; border-radius: 6px; background: #3a2a0c; color: #ffd8a8; font-size: 12px; }
+	.warnline[hidden] { display: none; }
+
+	/* the line page itself: kept running but not drawn, until "Setup" opens it */
+	.frame { position: fixed; left: -10000px; top: 0; width: 640px; height: 480px; visibility: hidden; pointer-events: none; }
+	.frame iframe { width: 100%; height: 100%; border: 0; background: #000; }
+	.card.open .frame { left: 24px; right: 24px; top: 56px; bottom: 24px; width: auto; height: auto; visibility: visible; pointer-events: auto; z-index: 20; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+	.closebar { display: none; position: fixed; top: 12px; right: 24px; z-index: 21; align-items: center; gap: 12px; }
+	.closebar span { color: var(--muted); font-size: 13px; }
+	.card.open .closebar { display: flex; }
+	.scrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 15; }
 	body.has-open .scrim { display: block; }
-	@media (max-width: 420px) { main { padding: 12px 16px; grid-template-columns: 1fr; } header .hint { display: none; } }
+	body.has-open header .hint { visibility: hidden; }
+	@media (max-width: 420px) { main { grid-template-columns: 1fr; } header .hint { display: none; } }
 </style>
 </head>
 <body>
@@ -70,7 +103,7 @@
 	<h1>Phone Switchboard</h1>
 	<span class="sum" id="sum"></span>
 	<span class="spacer"></span>
-	<span class="hint">Open a line to enter its password the first time</span>
+	<span class="hint">New line? Use Setup to enter its password once.</span>
 </header>
 <div class="scrim"></div>
 <main id="board"></main>
@@ -78,18 +111,23 @@
 <template id="card-tpl">
 	<section class="card">
 		<div class="top"><span class="name"></span><span class="ext"></span><span class="chip">Loading</span></div>
-		<div class="who"><span class="caller"></span><span class="timer"></span></div>
-		<div class="status"></div>
-		<div class="warnline"></div>
-		<div class="btns">
-			<button class="answer" hidden>Answer</button>
+		<div class="who"><span class="caller idle"></span><span class="timer"></span></div>
+		<div class="meters" title="Caller: what the caller sends. Return: what the caller hears.">
+			<span>Caller</span><div class="meter"><i class="m-in"></i></div>
+			<span>Return</span><div class="meter"><i class="m-out"></i></div>
+		</div>
+		<div class="row main">
+			<button class="answer" disabled>Answer</button>
 			<button class="hang" disabled>Hang up</button>
-			<button class="conn">Connect</button>
-			<button class="openb">Open</button>
 		</div>
 		<label class="outrow">Output <select class="outsel"><option value="">Off (not played here)</option></select></label>
+		<div class="warnline" hidden></div>
+		<div class="row foot">
+			<span class="status"></span>
+			<span class="quiet"><button class="conn">Connect</button><button class="openb">Setup</button></span>
+		</div>
 		<div class="frame"><iframe allow="microphone; camera; autoplay; display-capture; clipboard-write; fullscreen; local-network-access; local-network; loopback-network"></iframe></div>
-		<div class="closebar"><button class="closeb">Close</button></div>
+		<div class="closebar"><span class="closelabel"></span><button class="closeb">Close</button></div>
 	</section>
 </template>
 
@@ -114,11 +152,14 @@
 	var lines = parseLines(params.get("lines"));
 	var passThrough = new URLSearchParams();
 	params.forEach(function (value, key) {
-		if (key !== "lines" && key !== "listen" && !/^out\d$/.test(key) && !/^l\d\./.test(key)) { passThrough.append(key, value); }
+		if (key !== "lines" && key !== "listen" && key !== "video" && !/^out\d$/.test(key) && !/^l\d\./.test(key)) { passThrough.append(key, value); }
 	});
 	// every line joins the room by itself and connects once its password is saved
 	["miconly", "autostart", "sipauto"].forEach(function (k) { if (!passThrough.has(k)) { passThrough.append(k, ""); } });
 	if (!params.has("listen") && !passThrough.has("mutespeaker")) { passThrough.append("mutespeaker", ""); }
+	// phone lines only need the room's audio: not receiving guests' video saves a lot of CPU here
+	// (and the video guests no longer encode a stream for every phone line)
+	if (!params.has("video") && !passThrough.has("novideo")) { passThrough.append("novideo", ""); }
 
 	function lineQuery(n) {
 		var q = new URLSearchParams(passThrough.toString());
@@ -140,11 +181,12 @@
 			chip: node.querySelector(".chip"), caller: node.querySelector(".caller"), timer: node.querySelector(".timer"),
 			status: node.querySelector(".status"), warn: node.querySelector(".warnline"),
 			answer: node.querySelector(".answer"), hang: node.querySelector(".hang"), conn: node.querySelector(".conn"),
-			outsel: node.querySelector(".outsel"),
-			callStart: 0
+			outsel: node.querySelector(".outsel"), ext: node.querySelector(".ext"),
+			mIn: node.querySelector(".m-in"), mOut: node.querySelector(".m-out"),
+			callStart: 0, last: {}
 		};
 		node.querySelector(".name").textContent = "Line " + n;
-		node.querySelector(".ext").textContent = "880" + n;
+		node.querySelector(".closelabel").textContent = "Line " + n + " setup";
 		c.frame.title = "Phone Line " + n;
 		var extra = lineQuery(n);
 		c.frame.src = "./line" + n + ".html" + (extra ? "?" + extra : "");
@@ -181,10 +223,58 @@
 		var s = Math.floor(ms / 1000);
 		return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 	}
+	// only touch the DOM when something changed (the board refreshes twice a second)
+	function setText(c, key, el, text) {
+		if (c.last[key] !== text) { c.last[key] = text; el.textContent = text; }
+	}
 	function setChip(c, text, cls) {
+		var v = text + "|" + cls;
+		if (c.last.chip === v) { return; }
+		c.last.chip = v;
 		c.chip.textContent = text;
 		c.chip.className = "chip" + (cls ? " " + cls : "");
 	}
+
+	// ---- live levels: caller (what they send) and return (what they hear) ----
+	// measured with the line's own audio context (the one that already builds the caller's
+	// return mix), so nothing extra has to be started or unlocked here
+	function tap(c, key, a, stream) {
+		var t = c[key];
+		if (t && t.stream === stream) { return t; }
+		if (t && t.src) { try { t.src.disconnect(); } catch (e) {} }
+		c[key] = null;
+		var ctx = a && a.w.session && a.w.session.audioCtxOutbound;
+		if (!stream || !ctx || !stream.getAudioTracks || !stream.getAudioTracks().length) { return null; }
+		try {
+			var src = ctx.createMediaStreamSource(stream);
+			var an = ctx.createAnalyser();
+			an.fftSize = 512;
+			src.connect(an);
+			c[key] = { stream: stream, src: src, an: an, buf: new a.w.Float32Array(an.fftSize) };
+		} catch (e) { c[key] = { stream: stream, src: null, an: null }; }
+		return c[key];
+	}
+	function level(t) {
+		if (!t || !t.an) { return 0; }
+		t.an.getFloatTimeDomainData(t.buf);
+		var sum = 0;
+		for (var i = 0; i < t.buf.length; i++) { sum += t.buf[i] * t.buf[i]; }
+		var db = 20 * Math.log10(Math.sqrt(sum / t.buf.length) + 1e-9);
+		return Math.max(0, Math.min(1, (db + 60) / 60)); // -60 dBFS .. 0 dBFS
+	}
+	function setMeter(el, v) {
+		var w = "calc(" + (100 - Math.round(v * 100)) + "% + 2px)";
+		if (el.style.width !== w) { el.style.width = w; }
+	}
+	setInterval(function () {
+		cards.forEach(function (c) {
+			var a = c.live ? api(c) : null;
+			var inT = tap(c, "tIn", a, a ? a.callin.remoteStream : null);
+			var outT = tap(c, "tOut", a, a ? a.callin.returnStream : null);
+			setMeter(c.mIn, level(inT));
+			setMeter(c.mOut, level(outT));
+		});
+	}, 100);
 
 	// ---- per-line output (caller's local playback), switchable live ----
 	var outputs = [];   // [{deviceId, label}]
@@ -215,12 +305,18 @@
 		try { localStorage.setItem(storeKey(c.n), JSON.stringify({ deviceId: deviceId, label: label })); } catch (e) {}
 		c.applied = null; // re-apply on next refresh
 	}
+	var menuSig = "";
 	function fillMenus() {
 		if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) { return; }
 		navigator.mediaDevices.enumerateDevices().then(function (list) {
-			outputs = list.filter(function (d) { return d.kind === "audiooutput" && d.deviceId !== "default" && d.deviceId !== "communications"; })
+			var next = list.filter(function (d) { return d.kind === "audiooutput" && d.deviceId !== "default" && d.deviceId !== "communications"; })
 				.map(function (d, i) { return { deviceId: d.deviceId, label: d.label || ("Output " + (i + 1)) }; });
+			var sig = next.map(function (o) { return o.deviceId + "=" + o.label; }).join("|");
+			if (sig === menuSig) { return; } // unchanged: leave open menus alone
+			menuSig = sig;
+			outputs = next;
 			cards.forEach(function (c) {
+				if (document.activeElement === c.outsel) { return; } // don't rebuild a menu being used
 				var want = resolveChoice(readChoice(c));
 				c.outsel.innerHTML = "";
 				[["", "Off (not played here)"], ["default", "System default output"]].concat(outputs.map(function (o) { return [o.deviceId, o.label]; }))
@@ -247,11 +343,13 @@
 			var st = a && a.callin && typeof a.callin.getLineStatus === "function" ? a.callin.getLineStatus() : null;
 			var inRoom = !!(a && a.w.session.videoElement && a.w.session.videoElement.id === "videosource");
 			c.el.classList.toggle("ringing", !!(st && st.ringing));
+			c.el.classList.toggle("oncall", !!(st && st.inCall));
+			c.live = !!(st && (st.inCall || st.ringing));
 			if (!st) {
 				setChip(c, "Loading", "");
-				c.status.textContent = "";
-				c.warn.style.display = "none";
-				c.answer.hidden = true; c.hang.disabled = true; c.conn.disabled = true;
+				setText(c, "status", c.status, "");
+				c.warn.hidden = true;
+				c.answer.disabled = true; c.hang.disabled = true; c.conn.disabled = true;
 				return;
 			}
 			var want = c.outsel.value;
@@ -261,7 +359,7 @@
 			if ((c.applied !== target || c.appliedWin !== a.w) && typeof a.callin.setOutput === "function") {
 				try { a.callin.setOutput(target); c.applied = target; c.appliedWin = a.w; } catch (e) {}
 			}
-			c.el.querySelector(".ext").textContent = "880" + c.n + (want ? " \u2192 " + outLabel.replace(/\s*\(.*\)$/, "") : "");
+			setText(c, "ext", c.ext, "880" + c.n);
 			if (st.registered) { reg++; }
 			if (st.inCall) { onCall++; }
 			if (st.ringing) { ringing++; }
@@ -276,24 +374,28 @@
 				else if (!st.hasPassword) { setChip(c, "Needs password", "warn"); }
 				else { setChip(c, "Offline", "bad"); }
 			}
-			c.caller.textContent = st.caller || "";
-			c.timer.textContent = c.callStart ? fmt(Date.now() - c.callStart) : "";
-			c.status.textContent = st.status || "";
+			var callerText = st.caller || (st.inCall || st.ringing ? "Unknown caller" : (st.registered ? "Waiting for calls" : ""));
+			setText(c, "caller", c.caller, callerText);
+			c.caller.classList.toggle("idle", !(st.inCall || st.ringing));
+			c.caller.title = st.caller || "";
+			setText(c, "timer", c.timer, c.callStart ? fmt(Date.now() - c.callStart) : "");
+			setText(c, "status", c.status, st.status || "");
 			c.status.title = st.status || "";
-			if (!inRoom) {
-				c.warn.textContent = "Not in the room yet: calls would be silent. Open the line and Join if it doesn't join by itself.";
-				c.warn.style.display = "block";
-			} else {
-				c.warn.style.display = "none";
-			}
-			c.answer.hidden = !st.ringing;
+			var warn = inRoom ? "" : (st.hasPassword ? "Not in the room yet: calls would be silent. Use Setup and Join if it doesn't join by itself." : "Use Setup to enter this line's password.");
+			setText(c, "warn", c.warn, warn);
+			c.warn.hidden = !warn;
+			c.answer.disabled = !st.ringing;
 			c.hang.disabled = !(st.inCall || st.ringing);
+			c.hang.classList.toggle("live", !c.hang.disabled);
+			setText(c, "hangl", c.hang, st.ringing ? "Decline" : "Hang up");
 			c.conn.disabled = !!st.pending;
-			c.conn.textContent = st.connected ? "Disconnect" : "Connect";
+			setText(c, "conn", c.conn, st.connected ? "Disconnect" : "Connect");
 		});
-		document.getElementById("sum").innerHTML =
-			"<b>" + reg + "</b>/" + cards.length + " ready &middot; <b>" + onCall + "</b> on call" + (ringing ? " &middot; <b>" + ringing + "</b> ringing" : "");
-		document.title = (onCall ? "(" + onCall + ") " : "") + "Phone Switchboard";
+		var sum = "<b>" + reg + "</b>/" + cards.length + " ready &middot; <b>" + onCall + "</b> on call" + (ringing ? " &middot; <b>" + ringing + "</b> ringing" : "");
+		var sumEl = document.getElementById("sum");
+		if (sumEl.innerHTML !== sum) { sumEl.innerHTML = sum; }
+		var title = (ringing ? "Ringing - " : "") + (onCall ? "(" + onCall + ") " : "") + "Phone Switchboard";
+		if (document.title !== title) { document.title = title; }
 	}
 	setInterval(refresh, 500);
 	refresh();
