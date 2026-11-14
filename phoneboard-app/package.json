@@ -1,15 +1,15 @@
 {
   "name": "delite-phone-board",
   "productName": "Delite Phone Board",
-  "version": "1.0.1",
-  "description": "Desktop window for the Delite Online VDO.Ninja phone switchboard (never throttled, single instance, tray, starts with Windows).",
+  "version": "2.0.0",
+  "description": "The station's phone lines as a desktop app: SIP settings, one process per line, never throttled (macOS and Windows).",
   "main": "main.js",
   "private": true,
   "license": "AGPL-3.0-only",
   "author": "Delite Online",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis portable --publish never"
+    "dist": "electron-builder --publish never"
   },
   "devDependencies": {
     "electron": "44.11.2",
@@ -24,6 +24,10 @@
     },
     "files": [
       "main.js",
+      "preload-line.js",
+      "preload-board.js",
+      "board.html",
+      "board.js",
       "icon.png",
       "tray-16.png",
       "tray-32.png",
@@ -48,6 +52,34 @@
     },
     "portable": {
       "artifactName": "DelitePhoneBoard-${version}-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.utilities",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "The phone lines use the station feed as their audio input."
+      },
+      "artifactName": "DelitePhoneBoard-${version}-mac-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": "-"
+    },
+    "dmg": {
+      "artifactName": "DelitePhoneBoard-${version}-mac-${arch}.${ext}"
     }
   }
 }

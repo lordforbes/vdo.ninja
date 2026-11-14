@@ -14,6 +14,8 @@
     ?lines=1-9        which lines to show (ranges and lists: 1-4, 1,2,5)   default 1-9
     &listen           play room/caller audio locally (default: lines are muted locally)
     &video            let the lines receive guests' video (default: audio only, much lighter)
+    &voiceprocessing  keep echo cancelling / auto-gain / noise reduction on the lines' input
+                      (default: off - the input is the station feed, not a microphone)
     &crosstalk        let phone lines connect to (and hear) each other directly (default: off;
                       callers hear each other through the station feed instead)
     any other option  passed to every line, e.g. &audiodevice=Out%20B3
@@ -158,7 +160,7 @@
 	var lines = parseLines(params.get("lines"));
 	var passThrough = new URLSearchParams();
 	params.forEach(function (value, key) {
-		if (key !== "lines" && key !== "listen" && key !== "video" && key !== "crosstalk" && !/^out\d$/.test(key) && !/^l\d\./.test(key)) { passThrough.append(key, value); }
+		if (key !== "lines" && key !== "listen" && key !== "video" && key !== "crosstalk" && key !== "voiceprocessing" && !/^out\d$/.test(key) && !/^l\d\./.test(key)) { passThrough.append(key, value); }
 	});
 	// every line joins the room by itself and connects once its password is saved
 	["miconly", "autostart", "sipauto"].forEach(function (k) { if (!passThrough.has(k)) { passThrough.append(k, ""); } });
@@ -166,6 +168,11 @@
 	// phone lines only need the room's audio: not receiving guests' video saves a lot of CPU here
 	// (and the video guests no longer encode a stream for every phone line)
 	if (!params.has("video") && !passThrough.has("novideo")) { passThrough.append("novideo", ""); }
+	// the lines' input is the station feed, not a voice: no echo cancelling, auto-gain or noise
+	// reduction (cleaner audio for callers, and less work for the PC). &voiceprocessing keeps them.
+	if (!params.has("voiceprocessing")) {
+		[["aec", "0"], ["agc", "0"], ["denoise", "0"]].forEach(function (kv) { if (!passThrough.has(kv[0])) { passThrough.append(kv[0], kv[1]); } });
+	}
 	// phone lines don't connect to each other (9 lines would otherwise make 72 connections inside
 	// this one window, all encoding and decoding audio). Callers still hear the presenter, the
 	// guests and the line's own input (the station feed). &crosstalk lets lines hear each other.

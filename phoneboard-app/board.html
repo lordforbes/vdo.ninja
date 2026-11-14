@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delite Phone Board</title>
+<style>
+	:root {
+		--bg: #0f1216; --panel: #161b21; --panel2: #1f262e; --line: #2a333d; --line-hi: #3b4653;
+		--text: #e6ebf0; --muted: #8d99a6; --faint: #5d6874;
+		--idle: #3d4a57; --ok: #2f9e5b; --warn: #c98a1b; --ring: #e8412f; --call: #1c7ed6; --bad: #c92a2a;
+		--focus: #5aa2ff;
+	}
+	* { box-sizing: border-box; }
+	html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+	header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+	header h1 { font-size: 16px; margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+	header h1::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ring); }
+	header .sum { color: var(--muted); font-variant-numeric: tabular-nums; }
+	header .sum b { color: var(--text); }
+	header .spacer { flex: 1; }
+	main { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; padding: 12px 16px 24px; align-items: start; }
+	.empty { grid-column: 1 / -1; color: var(--muted); padding: 40px 0; text-align: center; }
+
+	.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; }
+	.card.oncall { border-color: var(--call); }
+	.card.ringing { border-color: var(--ring); animation: ring 1s steps(2, start) infinite; }
+	@keyframes ring { 50% { box-shadow: 0 0 0 3px var(--ring); } }
+	@media (prefers-reduced-motion: reduce) { .card.ringing { animation: none; box-shadow: 0 0 0 3px var(--ring); } }
+	.top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+	.name { font-weight: 650; font-size: 15px; }
+	.ext { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+	.chip { margin-left: auto; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--idle); white-space: nowrap; }
+	.chip.ok { background: var(--ok); } .chip.warn { background: var(--warn); } .chip.ring { background: var(--ring); }
+	.chip.call { background: var(--call); } .chip.bad { background: var(--bad); }
+	.who { display: flex; align-items: baseline; gap: 10px; height: 26px; min-width: 0; }
+	.who .caller { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+	.who .caller.idle { font-size: 13px; font-weight: 400; color: var(--faint); }
+	.who .timer { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 15px; }
+	.meters { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--muted); }
+	.meter { position: relative; height: 6px; border-radius: 3px; overflow: hidden; background: linear-gradient(90deg, #2f9e5b 0 70%, #c98a1b 70% 88%, #e8412f 88%); }
+	.meter i { position: absolute; top: 0; right: -1px; bottom: 0; width: calc(100% + 2px); background: var(--panel2); transition: width .08s linear; }
+	@media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+
+	.row { display: flex; gap: 8px; align-items: center; }
+	button, select, input { font: inherit; font-size: 13px; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; }
+	button { padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+	button:hover:not(:disabled) { border-color: var(--line-hi); }
+	button:disabled { opacity: .35; cursor: default; }
+	button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+	button.primary { background: var(--ring); border-color: var(--ring); color: #fff; font-weight: 600; }
+	.row.main button { flex: 1; padding: 8px 12px; }
+	button.answer { background: var(--ok); border-color: var(--ok); font-weight: 600; }
+	button.hang.live { background: var(--bad); border-color: var(--bad); font-weight: 600; }
+	.row.foot { gap: 6px; }
+	.row .quiet { margin-left: auto; display: flex; gap: 6px; flex: none; }
+	.quiet button, button.quiet { background: transparent; color: var(--muted); padding: 4px 9px; font-size: 12px; }
+	.quiet button:hover:not(:disabled), button.quiet:hover:not(:disabled) { color: var(--text); }
+	.outrow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+	.outrow select { flex: 1; min-width: 0; padding: 5px 6px; }
+	.status { flex: 1; min-width: 0; color: var(--faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.warnline { padding: 6px 8px; border-radius: 6px; background: #3a2a0c; color: #ffd8a8; font-size: 12px; }
+	.warnline[hidden] { display: none; }
+
+	/* settings */
+	.sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; z-index: 20; overflow: auto; }
+	.sheet.open { display: block; }
+	.sheet form { max-width: 980px; margin: 32px auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+	.sheet h2 { margin: 0 0 4px; font-size: 18px; }
+	.sheet h3 { margin: 22px 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+	.sheet p.hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+	.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 14px; }
+	.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+	.field input { padding: 7px 8px; font-size: 13px; }
+	table { width: 100%; border-collapse: collapse; font-size: 13px; }
+	th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 4px 6px; }
+	td { padding: 4px 6px; border-top: 1px solid var(--line); }
+	td input[type=text], td input[type=password] { width: 100%; padding: 6px 7px; }
+	td.num { color: var(--muted); width: 1%; white-space: nowrap; }
+	.checks { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; }
+	.checks label { display: flex; gap: 6px; align-items: center; }
+	.actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; align-items: center; }
+	.actions .note { margin-right: auto; color: var(--muted); font-size: 12px; }
+	.saved { color: var(--ok); font-size: 12px; }
+	@media (max-width: 700px) { .sheet form { margin: 0; border-radius: 0; } table, tbody, tr, td { display: block; } thead { display: none; } td { border: 0; } tr { border-top: 1px solid var(--line); padding: 6px 0; } }
+</style>
+</head>
+<body>
+<header>
+	<h1>Delite Phone Board</h1>
+	<span class="sum" id="sum"></span>
+	<span class="spacer"></span>
+	<button class="quiet" id="settingsBtn">Settings</button>
+</header>
+<main id="board"><div class="empty" id="empty">No lines are switched on. Open Settings to add the station's lines.</div></main>
+
+<template id="card-tpl">
+	<section class="card">
+		<div class="top"><span class="name"></span><span class="ext"></span><span class="chip">Starting</span></div>
+		<div class="who"><span class="caller idle"></span><span class="timer"></span></div>
+		<div class="meters" title="Caller: what the caller sends. Return: what the caller hears.">
+			<span>Caller</span><div class="meter"><i class="m-in"></i></div>
+			<span>Return</span><div class="meter"><i class="m-out"></i></div>
+		</div>
+		<div class="row main">
+			<button class="answer" disabled>Answer</button>
+			<button class="hang" disabled>Hang up</button>
+		</div>
+		<label class="outrow">Output <select class="outsel"></select></label>
+		<div class="warnline" hidden></div>
+		<div class="row foot">
+			<span class="status"></span>
+			<span class="quiet"><button class="conn">Connect</button><button class="openb">Line page</button></span>
+		</div>
+	</section>
+</template>
+
+<div class="sheet" id="sheet">
+	<form id="settings" autocomplete="off">
+		<h2>Settings</h2>
+		<p class="hint">Saved on this computer. Passwords are kept in the system keychain and are never shown again; leave a password box empty to keep the saved one.</p>
+
+		<h3>Phone system (SIP)</h3>
+		<div class="grid2">
+			<label class="field">SIP WebSocket address<input type="text" name="sip.wss" placeholder="wss://pbx.example.com:8089/ws" required></label>
+			<label class="field">SIP domain (server)<input type="text" name="sip.domain" placeholder="pbx.example.com" required></label>
+		</div>
+
+		<h3>Lines</h3>
+		<table>
+			<thead><tr><th></th><th>On</th><th>Extension</th><th>Login name</th><th>Caller ID name</th><th>Password</th></tr></thead>
+			<tbody id="lineRows"></tbody>
+		</table>
+
+		<h3>Studio</h3>
+		<div class="grid2">
+			<label class="field">VDO.Ninja site<input type="text" name="site" required></label>
+			<label class="field">Room<input type="text" name="room" required></label>
+			<label class="field">TURN relay (optional)<input type="text" name="turn.url" placeholder="turn:host:3478"></label>
+			<label class="field">TURN user<input type="text" name="turn.user"></label>
+			<label class="field">TURN password<input type="password" name="turn.password" placeholder="(unchanged)"></label>
+		</div>
+
+		<h3>Options</h3>
+		<div class="checks">
+			<label><input type="checkbox" name="options.listen"> Play the room on this computer</label>
+			<label><input type="checkbox" name="options.video"> Lines receive guests' video</label>
+			<label><input type="checkbox" name="options.crosstalk"> Lines hear each other directly</label>
+			<label><input type="checkbox" name="options.voiceProcessing"> Voice processing on the station feed</label>
+			<label><input type="checkbox" name="startWithWindows"> <span id="startLabel">Start with the computer</span></label>
+			<label><input type="checkbox" name="startMinimized"> Start hidden</label>
+		</div>
+		<div class="grid2" style="margin-top:10px">
+			<label class="field">Extra VDO.Ninja options for every line (advanced)<input type="text" name="options.extra" placeholder="e.g. audiodevice=Loopback"></label>
+		</div>
+
+		<div class="actions">
+			<span class="note" id="verNote"></span>
+			<span class="saved" id="savedNote"></span>
+			<button type="button" class="quiet" id="folderBtn">Open settings folder</button>
+			<button type="button" id="cancelBtn">Close</button>
+			<button type="submit" class="primary">Save and restart lines</button>
+		</div>
+	</form>
+</div>
+
+<script src="board.js"></script>
+</body>
+</html>

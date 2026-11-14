@@ -37,6 +37,19 @@
 		return fallback || "";
 	}
 
+	// Secrets handed over by the Delite Phone Board desktop app (its preload script exposes
+	// window.delitePhoneBoard on this site only), so passwords never sit in the URL or in
+	// browser storage. Empty when running in an ordinary browser.
+	function appSecret(name) {
+		try {
+			var b = window.delitePhoneBoard;
+			var v = b && b[name];
+			return typeof v === "string" ? v : "";
+		} catch (e) {
+			return "";
+		}
+	}
+
 	function hasParam(names) {
 		var params = getParams();
 		if (!Array.isArray(names)) {
@@ -556,7 +569,7 @@
 		}
 		var server = { urls: urls };
 		var user = getParam(["sipturnuser", "callinturnuser"], "");
-		var pass = getParam(["sipturnpass", "callinturnpass"], "");
+		var pass = getParam(["sipturnpass", "callinturnpass"], "") || appSecret("turnPassword");
 		if (user) {
 			server.username = user;
 		}
@@ -2574,12 +2587,23 @@
 			if (!wssValue && state.mode === "signalwire" && signalWireSpace) {
 				wssValue = signalWireWssFromSpace(signalWireSpace);
 			}
-			var passwordValue = profileFlag(savedProfile, "rememberPassword", false) ? savedProfile.password || "" : "";
+			var appPassword = appSecret("sipPassword");
+			var passwordValue = appPassword || (profileFlag(savedProfile, "rememberPassword", false) ? savedProfile.password || "" : "");
+			var uriValue = getParamOrProfile(["sipuri", "callinuri"], savedProfile, "uri", "");
+			var authUserValue = getParamOrProfile(["sipuser", "callinuser"], savedProfile, "authUser", "");
 			var wss = makeInput("vdo-callin-wss", "SIP WebSocket URL", wssValue, "text");
-			var uri = makeInput("vdo-callin-uri", "SIP URI", getParamOrProfile(["sipuri", "callinuri"], savedProfile, "uri", ""), "text");
-			var authUser = makeInput("vdo-callin-auth", "Auth username", getParamOrProfile(["sipuser", "callinuser"], savedProfile, "authUser", ""), "text");
+			var uri = makeInput("vdo-callin-uri", "SIP URI", uriValue, "text");
+			var authUser = makeInput("vdo-callin-auth", "Auth username", authUserValue, "text");
 			var password = makeInput("vdo-callin-pass", "Password", passwordValue, "password");
-			if (passwordValue) {
+			if (appPassword) {
+				// the app's password belongs to the server and account it gave in the URL
+				state.savedSipIdentity = {
+					wss: String(wssValue || "").trim(),
+					uri: String(uriValue || "").trim(),
+					authUser: String(authUserValue || "").trim()
+				};
+				state.appPassword = true;
+			} else if (passwordValue) {
 				state.savedSipIdentity = {
 					wss: String(savedProfile.wss || "").trim(),
 					uri: String(savedProfile.uri || "").trim(),
@@ -2907,6 +2931,8 @@
 			provider.onchange();
 			if (state.ignoredPasswordParam) {
 				setStatus("SIP password URL parameter was ignored and removed from the address bar. Enter the password manually.");
+			} else if (state.appPassword) {
+				setStatus("Using this line's settings from the Delite Phone Board app.");
 			} else if (savedProfileLoaded && (provider.value === "sip" || provider.value === "signalwire")) {
 				setStatus(password.value ? "Loaded saved SIP profile from this browser, including its saved password." : "Loaded saved SIP profile from this browser. Enter the password if required.");
 			}

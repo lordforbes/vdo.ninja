@@ -1545,7 +1545,7 @@ async function main() {
 	}
 	if (urlParams.has("callin")) {
 		session.callinRequested = urlParams.get("callin") || "sip";
-		loadScript("./callin.js?v=d6", function () {
+		loadScript("./callin.js?v=d7", function () {
 			if (window.setupCallIn) {
 				window.setupCallIn({ mode: session.callinRequested });
 			}
