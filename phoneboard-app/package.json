@@ -1,7 +1,7 @@
 {
   "name": "delite-phone-board",
   "productName": "Delite Phone Board",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Desktop window for the Delite Online VDO.Ninja phone switchboard (never throttled, single instance, tray, starts with Windows).",
   "main": "main.js",
   "private": true,

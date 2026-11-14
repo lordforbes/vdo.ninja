@@ -73,6 +73,31 @@ let boardOrigin = "";
 
 function iconPath(name) { return path.join(__dirname, name); }
 
+// Always fetch the current board: the site lets browsers keep pages for 10 minutes, and a stale
+// copy would hide fixes until it expires.
+function loadBoard() {
+	if (!win || win.isDestroyed()) { return; }
+	win.webContents.session.clearCache().catch(() => {}).then(() => {
+		if (win && !win.isDestroyed()) { win.loadURL(cfg.url, { extraHeaders: "pragma: no-cache\n" }); }
+	});
+}
+
+// Once a minute, note CPU and memory use in the log, so a struggling PC shows up there.
+function logUsage() {
+	try {
+		const m = app.getAppMetrics();
+		let cpu = 0, mem = 0, renderer = 0;
+		m.forEach(p => {
+			cpu += p.cpu ? p.cpu.percentCPUUsage : 0;
+			mem += p.memory ? p.memory.workingSetSize : 0;
+			if (p.type === "Tab" || p.type === "Renderer") { renderer = Math.max(renderer, p.cpu ? p.cpu.percentCPUUsage : 0); }
+		});
+		const os = require("os");
+		const load = os.cpus().length;
+		log("usage: app cpu " + cpu.toFixed(0) + "% of one core (busiest page " + renderer.toFixed(0) + "%), memory " + Math.round(mem / 1024) + " MB, " + load + " cores, " + Math.round(os.freemem() / 1048576) + " MB free");
+	} catch (e) { log("usage: " + e.message); }
+}
+
 function applyLoginItem() {
 	if (process.platform !== "win32" && process.platform !== "darwin") { return; }
 	const opts = { openAtLogin: !!cfg.startWithWindows, args: [] };
@@ -130,14 +155,14 @@ function createWindow() {
 	// self-healing: reload if the page crashes or is killed; note hangs in the log
 	win.webContents.on("render-process-gone", (e, details) => {
 		log("board page gone: " + details.reason + " (exit " + details.exitCode + "), reloading in 3 s");
-		setTimeout(() => { if (win && !win.isDestroyed()) { win.loadURL(cfg.url); } }, 3000);
+		setTimeout(loadBoard, 3000);
 	});
 	win.on("unresponsive", () => log("board page unresponsive"));
 	win.on("responsive", () => log("board page responsive again"));
 	win.webContents.on("did-fail-load", (e, code, desc, url, isMain) => {
 		if (!isMain) { return; }
 		log("load failed (" + code + " " + desc + "), retrying in 10 s");
-		setTimeout(() => { if (win && !win.isDestroyed()) { win.loadURL(cfg.url); } }, 10000);
+		setTimeout(loadBoard, 10000);
 	});
 	win.webContents.on("page-title-updated", (e, title) => {
 		if (tray) { tray.setToolTip(title.replace("Phone Switchboard", APP_NAME)); }
@@ -151,8 +176,8 @@ function createWindow() {
 		}
 	});
 
-	win.loadURL(cfg.url);
-	log("started, loading " + cfg.url);
+	loadBoard();
+	log("started " + app.getVersion() + ", loading " + cfg.url);
 }
 
 function showWindow() {
@@ -183,7 +208,7 @@ function buildTray() {
 	tray.setToolTip(APP_NAME);
 	const menu = () => Menu.buildFromTemplate([
 		{ label: "Show phone board", click: showWindow },
-		{ label: "Reload", click: () => { if (win) { win.loadURL(cfg.url); } } },
+		{ label: "Reload", click: loadBoard },
 		{ type: "separator" },
 		{
 			label: "Start with Windows", type: "checkbox", checked: !!cfg.startWithWindows,
@@ -206,7 +231,7 @@ function buildMenu() {
 		{
 			label: "Board",
 			submenu: [
-				{ label: "Reload", accelerator: "CmdOrCtrl+R", click: () => win && win.loadURL(cfg.url) },
+				{ label: "Reload", accelerator: "CmdOrCtrl+R", click: loadBoard },
 				{ label: "Hide to tray", accelerator: "CmdOrCtrl+W", click: () => win && win.hide() },
 				{ type: "separator" },
 				{ label: "Quit…", accelerator: "CmdOrCtrl+Q", click: confirmQuit }
@@ -238,4 +263,5 @@ app.whenReady().then(() => {
 	buildMenu();
 	buildTray();
 	createWindow();
+	setInterval(logUsage, 60000);
 });
