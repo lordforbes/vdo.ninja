@@ -6121,6 +6121,17 @@ function handleVideoAspectRatioResize(v, UUID, applyIncomingRotation = false) {
 	}
 }
 
+// Delite: guests that are phone lines (stream IDs phoneline1..9, see switchboard / Phone Board).
+// The browser's own player bar on their tiles only changes what this director hears locally,
+// which is confusing next to the director's real (room-wide) volume and mute controls.
+function isPhoneLineGuest(UUID) {
+	try {
+		return /^phoneline\d+$/i.test(String((session.rpcs[UUID] && session.rpcs[UUID].streamID) || ""));
+	} catch (e) {
+		return false;
+	}
+}
+
 function setupIncomingScreenTracking(v, UUID) {
 	// SCREEN  element.
 
@@ -6224,12 +6235,14 @@ function setupIncomingScreenTracking(v, UUID) {
 		if (session.showControls !== null) {
 			v.controls = session.showControls;
 		} else {
-			v.controls = true;
+			v.controls = !isPhoneLineGuest(UUID); // Delite: phone lines use the director's own volume/mute controls only
 		}
 		var container = getById("screenContainer_" + UUID);
 		v.container = container;
 		v.disablePictureInPicture = false;
-		v.setAttribute("controls", "controls");
+		if (v.controls) {
+			v.setAttribute("controls", "controls");
+		}
 		container.appendChild(v);
 		pokeIframeAPI("control-box-video-updated", v.id, UUID);
 		session.requestRateLimit(session.directorViewBitrate, UUID); /// limit resolution for director
@@ -6607,13 +6620,17 @@ function setupIncomingVideoTracking(v, UUID) {
 	if (session.director) {
 		if (session.showControls === false) {
 			v.controls = false;
+		} else if (session.showControls === null && isPhoneLineGuest(UUID)) {
+			v.controls = false; // Delite: phone lines use the director's own volume/mute controls only
 		} else {
 			v.controls = true;
 		}
 		var container = getById("videoContainer_" + UUID);
 		v.container = container;
 		v.disablePictureInPicture = false;
-		v.setAttribute("controls", "controls");
+		if (v.controls) {
+			v.setAttribute("controls", "controls");
+		}
 		container.appendChild(v);
 		pokeIframeAPI("control-box-video-updated", v.id, UUID);
 		container.classList.add("hasMedia");
