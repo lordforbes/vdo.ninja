@@ -97,14 +97,14 @@
 					setChip(c, "On call", "call");
 				} else {
 					c.callStart = 0;
-					if (st.ringing) { setChip(c, "Ringing", "ring"); }
+					if (st.ringing) { setChip(c, st.joining ? "Ringing - joining room" : "Ringing", "ring"); }
 					else if (st.registered) { setChip(c, "Ready", "ok"); }
 					else if (st.pending) { setChip(c, "Connecting", "warn"); }
 					else if (!st.hasPassword) { setChip(c, "Needs password", "warn"); }
 					else { setChip(c, "Offline", "bad"); }
 				}
 				var live = st.inCall || st.ringing;
-				setText(c, "caller", c.caller, st.caller || (live ? "Unknown caller" : (st.registered ? "Waiting for calls" : "")));
+				setText(c, "caller", c.caller, st.caller || (live ? "Unknown caller" : (st.registered ? (st.joinOnRing ? "Waiting for calls (joins the room when one rings)" : "Waiting for calls") : "")));
 				c.caller.classList.toggle("idle", !live);
 				setText(c, "timer", c.timer, c.callStart ? fmt(Date.now() - c.callStart) : "");
 				setText(c, "status", c.status, st.status || "");
@@ -119,7 +119,7 @@
 			var warn = "";
 			if (!L.hasPassword) { warn = "No password saved for this line: open Settings."; }
 			else if (L.slow) { warn = "This line is answering slowly (" + Math.round(L.latency / 100) / 10 + " s): the computer may be overloaded, and calls can fail."; }
-			else if (st && !L.inRoom) { warn = "Not in the room yet: calls would be silent. Open the line page if it doesn't join by itself."; }
+			else if (st && !L.inRoom && !st.joinOnRing) { warn = "Not in the room yet: calls would be silent. Open the line page if it doesn't join by itself."; }
 			setText(c, "warn", c.warn, warn);
 			c.warn.hidden = !warn;
 			var lv = L.levels || { i: 0, o: 0 };
@@ -156,7 +156,7 @@
 			field("turn.user").value = s.turn.user || "";
 			field("turn.password").value = "";
 			field("turn.password").placeholder = s.turn.hasPassword ? "(saved - leave empty to keep)" : "(none saved)";
-			["listen", "video", "crosstalk", "voiceProcessing"].forEach(function (k) { field("options." + k).checked = !!s.options[k]; });
+			["joinOnRing", "listen", "video", "crosstalk", "voiceProcessing"].forEach(function (k) { field("options." + k).checked = !!s.options[k]; });
 			field("options.extra").value = s.options.extra || "";
 			field("startWithWindows").checked = !!s.startWithWindows;
 			field("startMinimized").checked = !!s.startMinimized;
@@ -198,7 +198,7 @@
 			startMinimized: field("startMinimized").checked,
 			lines: []
 		};
-		["listen", "video", "crosstalk", "voiceProcessing"].forEach(function (k) { s.options[k] = field("options." + k).checked; });
+		["joinOnRing", "listen", "video", "crosstalk", "voiceProcessing"].forEach(function (k) { s.options[k] = field("options." + k).checked; });
 		Array.prototype.forEach.call(rows.querySelectorAll("tr"), function (tr) {
 			s.lines.push({
 				n: +tr.dataset.n,

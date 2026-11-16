@@ -10,6 +10,10 @@ The station's phone lines as a desktop app. It replaces running `switchboard.htm
   can't freeze the others or the board. A crashed line restarts on its own; a line that stops
   answering for 45 s (and isn't on a call) is restarted.
 - **Never throttled**, single copy, lives in the tray / menu bar, can start at login.
+- **Lines join the room only when a call rings** (default): idle lines stay registered with
+  the PBX but outside the room; a ringing call makes its line join (about 1-3 s, the caller hears
+  ringing), answer once in, and leave again after the call (the line page reloads and
+  re-registers within a few seconds). Untick in Settings to keep lines in the room all the time.
 - **Lighter lines by default**: audio only (no guests' video), lines don't connect to each other,
   no echo cancelling / auto-gain / noise reduction on the station feed. Each can be switched back
   on in Settings.

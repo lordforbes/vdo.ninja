@@ -1314,6 +1314,7 @@
 			clearIncomingCallPrompt();
 			state.callPending = false;
 			state.activeSession = null;
+			scheduleLeaveRoom();
 			if (state.remoteAudio) {
 				try {
 					state.remoteAudio.pause();
@@ -2073,6 +2074,98 @@
 			}
 		}
 
+		// ---- join the room only when a call rings (&callinjoinonring) ----
+		// The line waits outside the room (registered with the PBX, microphone ready). When a
+		// call rings it joins the room, and only answers once it is in; when the call is over it
+		// reloads, which leaves the room and registers again a moment later.
+		function joinOnRingEnabled() {
+			return hasParam(["callinjoinonring", "joinonring"]);
+		}
+		function pageInRoom() {
+			return !!(window.session && session.videoElement && session.videoElement.id === "videosource");
+		}
+		function roomReady() {
+			return pageInRoom() && !!(session.ws && session.ws.readyState === 1);
+		}
+		function ensureRoomJoined(timeoutMs) {
+			return new Promise(function (resolve) {
+				if (roomReady()) {
+					resolve(true);
+					return;
+				}
+				if (!pageInRoom()) {
+					state.joinedForCall = true;
+					try {
+						if (typeof publishWebcam === "function") {
+							publishWebcam();
+						} else if (document.getElementById("gowebcam")) {
+							document.getElementById("gowebcam").click();
+						}
+					} catch (e) {
+						callinError(e);
+					}
+				}
+				var started = Date.now();
+				var timer = setInterval(function () {
+					if (roomReady()) {
+						clearInterval(timer);
+						// a moment for the director and scenes to connect before the caller is put through
+						setTimeout(function () { resolve(true); }, 700);
+					} else if (Date.now() - started > (timeoutMs || 12000)) {
+						clearInterval(timer);
+						resolve(false);
+					}
+				}, 200);
+			});
+		}
+		function scheduleLeaveRoom() {
+			if (!joinOnRingEnabled() || !(state.joinedForCall || pageInRoom())) {
+				return;
+			}
+			if (state.leaveTimer) {
+				clearTimeout(state.leaveTimer);
+			}
+			state.leaveTimer = setTimeout(function () {
+				state.leaveTimer = null;
+				if (state.activeSession || state.incomingBox || state.joiningForRing) {
+					return; // another call arrived meanwhile; leave after that one
+				}
+				setStatus("Call finished: leaving the room.");
+				try {
+					window.location.reload();
+				} catch (e) {
+					callinError(e);
+				}
+			}, 1500);
+		}
+		function answerWhenInRoom(sipSession) {
+			if (!joinOnRingEnabled() || roomReady()) {
+				answerIncoming(sipSession);
+				return;
+			}
+			setStatus("Joining the room before answering.");
+			ensureRoomJoined(12000).then(function (ok) {
+				if (state.activeSession !== sipSession) {
+					return;
+				}
+				if (ok) {
+					answerIncoming(sipSession);
+				} else {
+					refuseNotReady(sipSession);
+				}
+			});
+		}
+		function refuseNotReady(sipSession) {
+			try {
+				sipSession.terminate({ status_code: 480, reason_phrase: "Studio line not ready" });
+			} catch (e) {
+				callinError(e);
+			}
+			clearIncomingCallPrompt();
+			setStatus("Could not join the room in time, so the call was passed back to the phone system.");
+			scheduleLeaveRoom();
+		}
+
 		function showIncomingCall(sipSession) {
 			var from = "unknown caller";
 			try {
@@ -2094,7 +2187,7 @@
 			var accept = makeButton("Answer", "");
 			var reject = makeButton("Reject", "danger");
 			accept.onclick = function () {
-				answerIncoming(sipSession);
+				answerWhenInRoom(sipSession);
 			};
 			reject.onclick = function () {
 				try {
@@ -2113,6 +2206,30 @@
 			state.panel.querySelector(".vdo-callin-body").appendChild(box);
 			state.incomingBox = box;
 			setStatus("Incoming SIP call.");
+
+			if (joinOnRingEnabled() && !roomReady()) {
+				// join now, while it rings, so the caller's tile is already there when answered
+				state.joiningForRing = true;
+				setStatus("Incoming SIP call: joining the room.");
+				ensureRoomJoined(12000).then(function (ok) {
+					state.joiningForRing = false;
+					if (state.activeSession !== sipSession || !state.incomingBox) {
+						scheduleLeaveRoom(); // the caller gave up while we were joining
+						return;
+					}
+					if (!ok) {
+						refuseNotReady(sipSession);
+						return;
+					}
+					setStatus("Incoming SIP call (in the room).");
+					if (state.fields.autoAnswer.checked) {
+						answerIncoming(sipSession);
+					} else {
+						startRingtone(false);
+					}
+				});
+				return;
+			}
 
 			if (state.fields.autoAnswer.checked) {
 				state.incomingAutoAnswerTimer = setTimeout(function () {
@@ -2999,6 +3116,9 @@
 				inCall: !!state.activeSession && !state.incomingBox,
 				caller: String(caller || "").trim(),
 				hasPassword: !!(state.fields.password && state.fields.password.value),
+				joinOnRing: joinOnRingEnabled(),
+				inRoom: pageInRoom(),
+				joining: !!state.joiningForRing,
 				status: state.status ? state.status.textContent : ""
 			};
 		};

@@ -16,6 +16,8 @@
     &video            let the lines receive guests' video (default: audio only, much lighter)
     &voiceprocessing  keep echo cancelling / auto-gain / noise reduction on the lines' input
                       (default: off - the input is the station feed, not a microphone)
+    &alwaysinroom     lines join the room at start-up (default: a line joins only when a call
+                      rings, and leaves when it ends)
     &crosstalk        let phone lines connect to (and hear) each other directly (default: off;
                       callers hear each other through the station feed instead)
     any other option  passed to every line, e.g. &audiodevice=Out%20B3
@@ -160,10 +162,12 @@
 	var lines = parseLines(params.get("lines"));
 	var passThrough = new URLSearchParams();
 	params.forEach(function (value, key) {
-		if (key !== "lines" && key !== "listen" && key !== "video" && key !== "crosstalk" && key !== "voiceprocessing" && !/^out\d$/.test(key) && !/^l\d\./.test(key)) { passThrough.append(key, value); }
+		if (key !== "lines" && key !== "listen" && key !== "video" && key !== "crosstalk" && key !== "voiceprocessing" && key !== "alwaysinroom" && !/^out\d$/.test(key) && !/^l\d\./.test(key)) { passThrough.append(key, value); }
 	});
 	// every line joins the room by itself and connects once its password is saved
-	["miconly", "autostart", "sipauto"].forEach(function (k) { if (!passThrough.has(k)) { passThrough.append(k, ""); } });
+	// lines wait outside the room and only join it when a call rings (&alwaysinroom: join at start)
+	var joinOnRing = !params.has("alwaysinroom");
+	(joinOnRing ? ["miconly", "callinjoinonring", "sipauto"] : ["miconly", "autostart", "sipauto"]).forEach(function (k) { if (!passThrough.has(k)) { passThrough.append(k, ""); } });
 	if (!params.has("listen") && !passThrough.has("mutespeaker")) { passThrough.append("mutespeaker", ""); }
 	// phone lines only need the room's audio: not receiving guests' video saves a lot of CPU here
 	// (and the video guests no longer encode a stream for every phone line)
@@ -393,14 +397,15 @@
 				else if (!st.hasPassword) { setChip(c, "Needs password", "warn"); }
 				else { setChip(c, "Offline", "bad"); }
 			}
-			var callerText = st.caller || (st.inCall || st.ringing ? "Unknown caller" : (st.registered ? "Waiting for calls" : ""));
+			var callerText = st.caller || (st.inCall || st.ringing ? "Unknown caller" : (st.registered ? (st.joinOnRing ? "Waiting for calls (joins the room when one rings)" : "Waiting for calls") : ""));
 			setText(c, "caller", c.caller, callerText);
 			c.caller.classList.toggle("idle", !(st.inCall || st.ringing));
 			c.caller.title = st.caller || "";
 			setText(c, "timer", c.timer, c.callStart ? fmt(Date.now() - c.callStart) : "");
 			setText(c, "status", c.status, st.status || "");
 			c.status.title = st.status || "";
-			var warn = inRoom ? "" : (st.hasPassword ? "Not in the room yet: calls would be silent. Use Setup and Join if it doesn't join by itself." : "Use Setup to enter this line's password.");
+			var warn = !st.hasPassword ? "Use Setup to enter this line's password." :
+				(inRoom || st.joinOnRing ? "" : "Not in the room yet: calls would be silent. Use Setup and Join if it doesn't join by itself.");
 			setText(c, "warn", c.warn, warn);
 			c.warn.hidden = !warn;
 			c.answer.disabled = !st.ringing;

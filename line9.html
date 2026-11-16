@@ -5,5 +5,7 @@
 // e.g. line9.html?sipauto&audiodevice=Out%20B3
 var base = "./?room=DeliteDialin&push=phoneline9&label=Phone%20Line%209&videodevice=0&miconly&autostart&callin=sip&sipwss=wss://webrtc.d1g1.co.uk:8089/ws&sipuri=sip:8809@webrtc.d1g1.co.uk&sipuser=8809&sipdisplay=PhoneLine9&sipautoanswer&callinfollowmute&sipturn=turn:webrtc.d1g1.co.uk:3478&sipturnuser=vdophone&sipturnpass=Q4OfCPfXyKq4JeWkw2Tq";
 var extra = window.location.search.replace(/^\?/, "");
+// joining the room only when a call rings (the switchboard's default): don't join at start-up
+if (/(^|&)(callinjoinonring|joinonring)(=|&|$)/.test(extra)) { base = base.replace("&autostart", ""); }
 window.location.replace(base + (extra ? "&" + extra : ""));
 </script></head><body>Opening Phone Line 9…</body></html>

@@ -61,7 +61,7 @@ function defaults() {
 		room: "DeliteDialin",
 		sip: { wss: "wss://webrtc.d1g1.co.uk:8089/ws", domain: "webrtc.d1g1.co.uk" },
 		turn: { url: "turn:webrtc.d1g1.co.uk:3478", user: "vdophone", passwordEnc: "" },
-		options: { listen: false, video: false, crosstalk: false, voiceProcessing: false, extra: "" },
+		options: { joinOnRing: true, listen: false, video: false, crosstalk: false, voiceProcessing: false, extra: "" },
 		lines: lines,
 		startWithWindows: true,
 		startMinimized: false
@@ -158,7 +158,11 @@ function lineUrl(l) {
 	q.set("label", "Phone Line " + l.n);
 	q.set("videodevice", "0");
 	q.set("miconly", "");
-	q.set("autostart", "");
+	if (cfg.options.joinOnRing) {
+		q.set("callinjoinonring", ""); // wait outside the room; join when a call rings, leave after
+	} else {
+		q.set("autostart", "");
+	}
 	q.set("callin", "sip");
 	q.set("sipwss", cfg.sip.wss);
 	q.set("sipuri", "sip:" + l.ext + "@" + cfg.sip.domain);
@@ -427,7 +431,7 @@ ipcMain.handle("pb:saveSettings", (e, s) => {
 		else if (s.turn.password) { cfg.turn.passwordEnc = encrypt(String(s.turn.password)); }
 	}
 	if (s.options) {
-		["listen", "video", "crosstalk", "voiceProcessing"].forEach(k => { cfg.options[k] = !!s.options[k]; });
+		["joinOnRing", "listen", "video", "crosstalk", "voiceProcessing"].forEach(k => { cfg.options[k] = !!s.options[k]; });
 		cfg.options.extra = str(s.options.extra, 500);
 	}
 	if (Array.isArray(s.lines)) {

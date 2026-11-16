@@ -1,7 +1,7 @@
 {
   "name": "delite-phone-board",
   "productName": "Delite Phone Board",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "The station's phone lines as a desktop app: SIP settings, one process per line, never throttled (macOS and Windows).",
   "main": "main.js",
   "private": true,
