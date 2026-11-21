@@ -20,8 +20,16 @@ const os = require("os");
 app.commandLine.appendSwitch("disable-background-timer-throttling");
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
 app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
-app.commandLine.appendSwitch("disable-features", "IntensiveWakeUpThrottling,CalculateNativeWinOcclusion");
+app.commandLine.appendSwitch("disable-features", "IntensiveWakeUpThrottling,CalculateNativeWinOcclusion,WebRtcHideLocalIpsWithMdns");
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+// WebRtcHideLocalIpsWithMdns (above): offer the computer's real LAN address to the PBX instead of
+// a "<uuid>.local" name Asterisk can't resolve, so calls work without a TURN relay.
+
+// Pages must never be able to block a line from reloading (leaving the room after a call) or
+// the app from quitting: VDO.Ninja's "are you sure you want to exit?" would otherwise cancel both.
+app.on("web-contents-created", (e, wc) => {
+	wc.on("will-prevent-unload", ev => { ev.preventDefault(); });
+});
 
 const APP_NAME = "Delite Phone Board";
 const MAX_LINES = 9;
@@ -171,7 +179,7 @@ function lineUrl(l) {
 	q.set("sipautoanswer", "");
 	q.set("sipauto", "");
 	q.set("callinfollowmute", "");
-	if (cfg.turn.url) {
+	if (cfg.turn.url && cfg.turn.passwordEnc) { // a relay without its password would break every call
 		q.set("sipturn", cfg.turn.url);
 		if (cfg.turn.user) { q.set("sipturnuser", cfg.turn.user); }
 	}

@@ -570,6 +570,12 @@
 		var server = { urls: urls };
 		var user = getParam(["sipturnuser", "callinturnuser"], "");
 		var pass = getParam(["sipturnpass", "callinturnpass"], "") || appSecret("turnPassword");
+		if (!pass && urls.some(function (u) { return /^turns?:/i.test(u); })) {
+			// A TURN relay without its password makes the browser refuse to build the call's
+			// connection at all, so every answer would fail. Leave the relay out instead.
+			callinError("TURN relay " + urls.join(",") + " has no password; calls will not use it.");
+			return null;
+		}
 		if (user) {
 			server.username = user;
 		}
@@ -2070,7 +2076,15 @@
 				}, 0);
 			} catch (e) {
 				callinError(e);
-				setStatus("Failed to answer incoming call. Check the SIP account and browser media permissions.");
+				setStatus("Failed to answer incoming call: " + (e && e.message ? e.message : e));
+				// hand the call back to the phone system (it rings the next line) instead of
+				// leaving the caller ringing with the line stuck half-answered
+				try {
+					sipSession.terminate({ status_code: 500, reason_phrase: "Studio line error" });
+				} catch (e2) {}
+				if (state.activeSession === sipSession) {
+					cleanupCall();
+				}
 			}
 		}
 
@@ -2132,6 +2146,12 @@
 				}
 				setStatus("Call finished: leaving the room.");
 				try {
+					// VDO.Ninja asks "are you sure you want to exit?" while in a room; in the app
+					// that question silently cancels the reload, so the line would never leave.
+					session.noExitPrompt = true;
+					if (typeof confirmUnload === "function") {
+						window.removeEventListener("beforeunload", confirmUnload);
+					}
 					window.location.reload();
 				} catch (e) {
 					callinError(e);
